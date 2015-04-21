@@ -32,4 +32,6 @@ Frame * convert_char_to_frame(char *);
 
 uint8_t SwpSeqNo_minus(SwpSeqNo a, SwpSeqNo b);
 
+void printFrame(Frame* f);
+
 #endif

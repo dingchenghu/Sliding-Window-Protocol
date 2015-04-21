@@ -150,16 +150,22 @@ char * convert_frame_to_char(Frame * frame)
     memcpy(curPos, &(frame->swpSeqNo), sizeof(SwpSeqNo));
     curPos += sizeof(SwpSeqNo);
 
+    memcpy(curPos, &(frame->recv_id), sizeof(uint16_t));
+    curPos += sizeof(uint16_t);
+
+    memcpy(curPos, &(frame->recv_id), sizeof(uint16_t));
+    curPos += sizeof(uint16_t);
+
     memcpy(curPos, frame->flag, FRAME_FLAG_SIZE);
     curPos += FRAME_FLAG_SIZE;
 
     memcpy(curPos, frame->data, FRAME_PAYLOAD_SIZE);
     curPos += FRAME_PAYLOAD_SIZE;
 
-    memcpy(curPos, &(frame->parity), sizeof(uint64_t));
-    curPos += sizeof(uint64_t);
+    memcpy(curPos, &(frame->parity), sizeof(Parity));
+    curPos += sizeof(Parity);
 
-    assert(curPos - char_buffer == 64);
+    assert(curPos - char_buffer == 60);
 
     return char_buffer;
 }
@@ -175,18 +181,31 @@ Frame * convert_char_to_frame(char * char_buf)
     memcpy(&(frame->swpSeqNo), curPos, sizeof(SwpSeqNo));
     curPos += sizeof(SwpSeqNo);
 
+    memcpy(&(frame->send_id), curPos, sizeof(uint16_t));
+    curPos += sizeof(uint16_t);
+
+    memcpy(&(frame->recv_id), curPos, sizeof(uint16_t));
+    curPos += sizeof(uint16_t);
+
     memcpy(frame->flag, curPos, FRAME_FLAG_SIZE);
     curPos += FRAME_FLAG_SIZE;
 
     memcpy(frame->data, curPos, FRAME_PAYLOAD_SIZE);
     curPos += FRAME_PAYLOAD_SIZE;
 
-    memcpy(&(frame->parity), curPos, sizeof(uint64_t));
-    curPos += sizeof(uint64_t);
+    memcpy(&(frame->parity), curPos, sizeof(Parity));
+    curPos += sizeof(Parity);
 
-    assert(curPos - char_buf == 64);
+    assert(curPos - char_buf == 60);
 
     return frame;
+}
+
+void printFrame(Frame* f){
+    fprintf(stderr, "SeqNo: %d, SendID: %d, RecvID: %d, Flag: %X%X%X, Parity %X, Data: %s\n",
+        f->swpSeqNo, f->send_id, f->recv_id,
+        f->flag[0], f->flag[1], f->flag[2],
+        f->parity, f->data);
 }
 
 uint8_t SwpSeqNo_minus(SwpSeqNo a, SwpSeqNo b){

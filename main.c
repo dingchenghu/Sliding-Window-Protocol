@@ -19,6 +19,8 @@
 
 int main(int argc, char *argv[])
 {
+    fprintf(stderr, "size of frame = %lu\n", sizeof(Frame));
+
     pthread_t stdin_thread;
     pthread_t * sender_threads;
     pthread_t * receiver_threads;

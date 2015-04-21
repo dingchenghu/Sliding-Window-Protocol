@@ -41,14 +41,22 @@ void handle_incoming_msgs(Receiver * receiver,
 
         Frame * inframe = convert_char_to_frame(raw_char_buf);
 
-        fprintf(stderr, "Receiver %d receiving msg: %s\n\tReturn AckNo = %d\n\n",
-            receiver->recv_id, inframe->data,
-            inframe->swpSeqNo);
+        fprintf(stderr, "Receiver %d receiving a frame: \n\t",
+            receiver->recv_id);
+        printFrame(inframe);
+        fprintf(stderr, "\n");
 
         //Free raw_char_buf
         free(raw_char_buf);
 
-        printf("<RECV_%d>:[%s]\n", receiver->recv_id, inframe->data);
+
+        ////for now, only accept continuous seq no
+        //TODO implement SWP for receiver
+        if(SwpSeqNo_minus(inframe->swpSeqNo, receiver->LastFrameReceived) == 1)
+        {
+            receiver->LastFrameReceived += 1;
+            printf("<RECV_%d>:[%s]\n", receiver->recv_id, inframe->data);
+        }
 
         //send ack
         Frame *outframe = (Frame*) malloc(sizeof(Frame));

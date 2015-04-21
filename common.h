@@ -64,16 +64,20 @@ typedef struct LLnode_t LLnode;
 
 //TODO: You should change this!
 //Remember, your frame can be AT MOST 64 bytes!
-#define FRAME_PAYLOAD_SIZE 52
+#define FRAME_PAYLOAD_SIZE 48
 #define FRAME_FLAG_SIZE 3
 #define FRAME_PARITY_SIZE 8
+
+typedef uint32_t Parity;
 
 struct Frame_t
 {
     SwpSeqNo swpSeqNo; // 1 byte
+    uint16_t send_id; // 2 bytes
+    uint16_t recv_id; // 2 bytes
     unsigned char flag[FRAME_FLAG_SIZE];
     char data[FRAME_PAYLOAD_SIZE];
-    uint64_t parity; // 8 bytes
+    Parity parity; // 4 bytes
 };
 typedef struct Frame_t Frame;
 
