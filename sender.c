@@ -10,9 +10,10 @@ void init_sender(Sender * sender, int id)
     sender->input_cmdlist_head = NULL;
     sender->input_framelist_head = NULL;
 
-    sender->curSeqNum = 0; // SeqNum : 0 ~ 255
     sender->LastAckReceived = 0 - 1;
     sender->LastFrameSent = 0 - 1 ;
+
+    sender->SwpWindow = 0;
 }
 
 struct timeval * sender_get_next_expiring_timeval(Sender * sender)
@@ -47,6 +48,9 @@ void handle_incoming_acks(Sender * sender,
 
         SwpSeqNo AckNo = '\0';
         memcpy(&AckNo, inframe, sizeof(SwpSeqNo));
+
+        //update SWP status
+        sender->LastAckReceived = AckNo;
 
         fprintf(stderr, "Sender %d receiving Ack: %d\n\n",
             sender->send_id, AckNo);
@@ -98,12 +102,13 @@ void handle_input_cmds(Sender * sender,
         {
             fprintf(stderr, "Sender %d sending msg: %s\n\tSeqNo = %d\n\n",
                 sender->send_id, outgoing_cmd->message,
-                sender->curSeqNum);
+                sender->LastFrameSent + 1);
 
             Frame * outgoing_frame = (Frame *) malloc (sizeof(Frame));
+            memset(outgoing_frame, 0, sizeof(Frame));
 
             //attach SWP header
-            char SwpHdr = sender->curSeqNum++;
+            char SwpHdr = ++(sender->LastFrameSent);
             memcpy(outgoing_frame->data, &SwpHdr, sizeof(SwpSeqNo));
 
             memcpy(outgoing_frame->data + sizeof(SwpSeqNo), outgoing_cmd->message,
@@ -144,8 +149,6 @@ void * run_sender(void * input_sender)
     LLnode * outgoing_frames_head;
     struct timeval * expiring_timeval;
     long sleep_usec_time, sleep_sec_time;
-
-    const SwpSeqNo SendWindowSize = 8;
 
     //This incomplete sender thread, at a high level, loops as follows:
     //1. Determine the next time the thread should wake up
@@ -241,6 +244,12 @@ void * run_sender(void * input_sender)
         //CHANGE THIS AT YOUR OWN RISK!
         //Send out all the frames
         int ll_outgoing_frame_length = ll_get_length(outgoing_frames_head);
+
+        if(SwpSeqNo_minus(sender->LastFrameSent, sender-> LastAckReceived) > SWP_WINDOW_SIZE){
+            fprintf(stderr, "Sender %d : LFS = %d, LAR = %d, abort sending. \n\n",
+                    sender->send_id, sender->LastFrameSent, sender-> LastAckReceived);
+            continue;
+        }
 
         while(ll_outgoing_frame_length > 0)
         {

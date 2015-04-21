@@ -8,6 +8,10 @@ void init_receiver(Receiver * receiver,
 {
     receiver->recv_id = id;
     receiver->input_framelist_head = NULL;
+
+    receiver->LastFrameReceived = 0 - 1;
+
+    receiver->SwpWindow = 0;
 }
 
 
@@ -37,10 +41,9 @@ void handle_incoming_msgs(Receiver * receiver,
 
         Frame * inframe = convert_char_to_frame(raw_char_buf);
         Frame * inframe_payload = convert_char_to_frame(raw_char_buf + sizeof(SwpSeqNo));
-        SwpSeqNo inframe_SeqNo = '\0';
-
 
         //get SeqNo
+        SwpSeqNo inframe_SeqNo = '\0';
         memcpy(&inframe_SeqNo, inframe, sizeof(SwpSeqNo));
 
         fprintf(stderr, "Receiver %d receiving msg: %s\n\tReturn AckNo = %d\n\n",

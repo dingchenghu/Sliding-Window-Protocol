@@ -24,10 +24,12 @@ void ll_destroy_node(LLnode *);
 void print_cmd(Cmd *);
 
 //Time functions
-long timeval_usecdiff(struct timeval *, 
+long timeval_usecdiff(struct timeval *,
                       struct timeval *);
 
-//TODO: Impelemt these functions
 char * convert_frame_to_char(Frame *);
 Frame * convert_char_to_frame(char *);
+
+uint8_t SwpSeqNo_minus(SwpSeqNo a, SwpSeqNo b);
+
 #endif

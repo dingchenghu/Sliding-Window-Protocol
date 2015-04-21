@@ -58,6 +58,7 @@ struct LLnode_t
 };
 typedef struct LLnode_t LLnode;
 
+#define SWP_WINDOW_SIZE 8
 
 //Receiver and sender data structures
 struct Receiver_t
@@ -72,6 +73,12 @@ struct Receiver_t
     LLnode * input_framelist_head;
 
     int recv_id;
+
+    SwpSeqNo LastFrameReceived;
+
+    //8 bits -> 8 next SeqNo
+    //1 -> seq received
+    uint8_t SwpWindow;
 };
 
 struct Sender_t
@@ -88,9 +95,13 @@ struct Sender_t
     LLnode * input_framelist_head;
     int send_id;
 
-    SwpSeqNo curSeqNum; // SeqNum : 0 ~ 255
+    //SeqNum : 0 ~ 255
     SwpSeqNo LastAckReceived;
     SwpSeqNo LastFrameSent;
+
+    //8 bits -> 8 next SeqNo
+    //1 -> ack received
+    uint8_t SwpWindow;
 };
 
 enum SendFrame_DstType

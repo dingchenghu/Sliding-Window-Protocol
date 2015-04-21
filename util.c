@@ -139,7 +139,7 @@ void print_cmd(Cmd * cmd)
 
 char * convert_frame_to_char(Frame * frame)
 {
-    //TODO: You should implement this as necessary
+    //You should implement this as necessary
     char * char_buffer = (char *) malloc(MAX_FRAME_SIZE);
     memset(char_buffer,
            0,
@@ -153,7 +153,7 @@ char * convert_frame_to_char(Frame * frame)
 
 Frame * convert_char_to_frame(char * char_buf)
 {
-    //TODO: You should implement this as necessary
+    //You should implement this as necessary
     Frame * frame = (Frame *) malloc(sizeof(Frame));
     memset(frame->data,
            0,
@@ -162,4 +162,11 @@ Frame * convert_char_to_frame(char * char_buf)
            char_buf,
            sizeof(char)*sizeof(frame->data));
     return frame;
+}
+
+uint8_t SwpSeqNo_minus(SwpSeqNo a, SwpSeqNo b){
+    if(a >= b)
+        return a - b;
+    else
+        return 255 - b + a + 1;
 }
