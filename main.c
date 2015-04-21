@@ -15,6 +15,7 @@
 #include "communicate.h"
 #include "receiver.h"
 #include "sender.h"
+#include "crc32.h"
 
 int main(int argc, char *argv[])
 {
@@ -44,53 +45,53 @@ int main(int argc, char *argv[])
     srand(time(NULL));
 
     //Parse out the command line arguments
-    for(i=1; i < argc;) 
+    for(i=1; i < argc;)
     {
-      if(strcmp(argv[i], "-s") == 0) 
+      if(strcmp(argv[i], "-s") == 0)
       {
-          sscanf(argv[i+1], 
-                 "%d", 
+          sscanf(argv[i+1],
+                 "%d",
                  &glb_senders_array_length);
           i += 2;
       }
-      
-      else if(strcmp(argv[i], "-r") == 0) 
+
+      else if(strcmp(argv[i], "-r") == 0)
       {
-          sscanf(argv[i+1], 
-                 "%d", 
+          sscanf(argv[i+1],
+                 "%d",
                  &glb_receivers_array_length);
           i += 2;
-      }      
-      else if(strcmp(argv[i], "-d") == 0) 
+      }
+      else if(strcmp(argv[i], "-d") == 0)
       {
-          sscanf(argv[i+1], 
-                 "%f", 
+          sscanf(argv[i+1],
+                 "%f",
                  &glb_sysconfig.drop_prob);
           i += 2;
-      }      
-      else if(strcmp(argv[i], "-c") == 0) 
+      }
+      else if(strcmp(argv[i], "-c") == 0)
       {
-          sscanf(argv[i+1], 
-                 "%f", 
+          sscanf(argv[i+1],
+                 "%f",
                  &glb_sysconfig.corrupt_prob);
           i += 2;
       }
-      else if(strcmp(argv[i], "-a") == 0) 
+      else if(strcmp(argv[i], "-a") == 0)
       {
           int filename_len = strlen(argv[i+1]);
           if (filename_len < AUTOMATED_FILENAME)
           {
               glb_sysconfig.automated = 1;
-              strcpy(glb_sysconfig.automated_file, 
+              strcpy(glb_sysconfig.automated_file,
                      argv[i+1]);
           }
           i += 2;
-      }     
-      else if(strcmp(argv[i], "-h") == 0) 
+      }
+      else if(strcmp(argv[i], "-h") == 0)
       {
           print_usage=1;
           i++;
-      }     
+      }
       else
       {
           i++;
@@ -107,8 +108,8 @@ int main(int argc, char *argv[])
         fprintf(stderr, "USAGE: etherchat \n   -r int [# of receivers] \n   -s int [# of senders] \n   -c float [0 <= corruption prob <= 1] \n   -d float [0 <= drop prob <= 1]\n");
         exit(1);
     }
-        
-    
+
+
     //DO NOT CHANGE THIS
     //Create the standard input thread
     int rc = pthread_create(&stdin_thread,
@@ -129,7 +130,7 @@ int main(int argc, char *argv[])
     //Init the global senders array
     glb_senders_array = (Sender *) malloc(glb_senders_array_length * sizeof(Sender));
     glb_receivers_array = (Receiver *) malloc(glb_receivers_array_length * sizeof(Receiver));
-    
+
     fprintf(stderr, "Messages will be dropped with probability=%f\n", glb_sysconfig.drop_prob);
     fprintf(stderr, "Messages will be corrupted with probability=%f\n", glb_sysconfig.corrupt_prob);
     fprintf(stderr, "Available sender id(s):\n");
@@ -142,7 +143,7 @@ int main(int argc, char *argv[])
     {
         init_sender(&glb_senders_array[i], i);
         fprintf(stderr, "   send_id=%d\n", i);
-        
+
     }
 
     //Init receiver objects, assign ids
@@ -155,7 +156,7 @@ int main(int argc, char *argv[])
         init_receiver(&glb_receivers_array[i], i);
         fprintf(stderr, "   recv_id=%d\n", i);
     }
-    
+
     //Spawn sender threads
     for (i = 0;
          i < glb_senders_array_length;
@@ -185,6 +186,9 @@ int main(int argc, char *argv[])
             exit(-1);
         }
     }
+
+    fprintf(stderr, "\n");
+
     pthread_join(stdin_thread, NULL);
 
     for (i = 0;

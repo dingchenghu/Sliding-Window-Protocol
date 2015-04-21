@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 #include <pthread.h>
 #include <sys/socket.h>
@@ -15,6 +16,8 @@
 #include "common.h"
 #include "util.h"
 #include "communicate.h"
+#include "crc32.h"
+
 
 void init_receiver(Receiver *, int);
 void * run_receiver(void *);

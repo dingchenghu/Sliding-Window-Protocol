@@ -12,7 +12,7 @@ OS = LINUX
 CCFLAGS = -Wall $(DEBUG) -D$(OS) -std=c99
 
 # add object file names here
-OBJS = main.o util.o input.o communicate.o sender.o receiver.o
+OBJS = main.o util.o input.o communicate.o sender.o receiver.o crc32.o
 
 all: tritontalk
 
@@ -23,10 +23,10 @@ all: tritontalk
 	$(CC) -c $(CCFLAGS) $<
 
 $(TARGET): $(OBJS)
-	$(CC) -o $(TARGET) $(OBJS) $(CCFLAGS) $(LDFLAGS) 
+	$(CC) -o $(TARGET) $(OBJS) $(CCFLAGS) $(LDFLAGS)
 
 clean:
-	rm -f $(TARGET) core *.o *~ 
+	rm -f $(TARGET) core *.o *~
 
 submit: clean
 	rm -f project1.tgz; tar czvf project1.tgz *; turnin project1.tgz -c cs123f -p project1

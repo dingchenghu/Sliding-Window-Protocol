@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 #include <pthread.h>
 #include <sys/socket.h>
@@ -13,9 +14,11 @@
 #include <math.h>
 #include <sys/time.h>
 
-#define MAX_COMMAND_LENGTH 16
+#define MAX_COMMAND_LENGTH 16  // 64 Bytes
 #define AUTOMATED_FILENAME 512
+
 typedef unsigned char uchar_t;
+typedef uint8_t SwpSeqNo;
 
 //System configuration information
 struct SysConfig_t
@@ -37,7 +40,7 @@ struct Cmd_t
 typedef struct Cmd_t Cmd;
 
 //Linked list information
-enum LLtype 
+enum LLtype
 {
     llt_string,
     llt_frame,
@@ -67,7 +70,7 @@ struct Receiver_t
     pthread_mutex_t buffer_mutex;
     pthread_cond_t buffer_cv;
     LLnode * input_framelist_head;
-    
+
     int recv_id;
 };
 
@@ -80,13 +83,17 @@ struct Sender_t
     // 4) input_framelist_head
     // 5) send_id
     pthread_mutex_t buffer_mutex;
-    pthread_cond_t buffer_cv;    
+    pthread_cond_t buffer_cv;
     LLnode * input_cmdlist_head;
     LLnode * input_framelist_head;
     int send_id;
+
+    SwpSeqNo curSeqNum; // SeqNum : 0 ~ 255
+    SwpSeqNo LastAckReceived;
+    SwpSeqNo LastFrameSent;
 };
 
-enum SendFrame_DstType 
+enum SendFrame_DstType
 {
     ReceiverDst,
     SenderDst
@@ -101,6 +108,8 @@ typedef struct Receiver_t Receiver;
 //TODO: You should change this!
 //Remember, your frame can be AT MOST 64 bytes!
 #define FRAME_PAYLOAD_SIZE 64
+#define PAYLOAD_SIZE 48
+
 struct Frame_t
 {
     char data[FRAME_PAYLOAD_SIZE];
@@ -109,7 +118,7 @@ typedef struct Frame_t Frame;
 
 
 //Declare global variables here
-//DO NOT CHANGE: 
+//DO NOT CHANGE:
 //   1) glb_senders_array
 //   2) glb_receivers_array
 //   3) glb_senders_array_length
@@ -122,4 +131,5 @@ int glb_senders_array_length;
 int glb_receivers_array_length;
 SysConfig glb_sysconfig;
 int CORRUPTION_BITS;
-#endif 
+
+#endif

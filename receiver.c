@@ -1,5 +1,8 @@
 #include "receiver.h"
 
+//#define NDEBUG
+#include <assert.h>
+
 void init_receiver(Receiver * receiver,
                    int id)
 {
@@ -29,22 +32,41 @@ void handle_incoming_msgs(Receiver * receiver,
         //NOTE: You should not blindly print messages!
         //      Ask yourself: Is this message really for me?
         //                    Is this message corrupted?
-        //                    Is this an old, retransmitted message?           
+        //                    Is this an old, retransmitted message?
         char * raw_char_buf = (char *) ll_inmsg_node->value;
+
         Frame * inframe = convert_char_to_frame(raw_char_buf);
-        
+        Frame * inframe_payload = convert_char_to_frame(raw_char_buf + sizeof(SwpSeqNo));
+        SwpSeqNo inframe_SeqNo = '\0';
+
+
+        //get SeqNo
+        memcpy(&inframe_SeqNo, inframe, sizeof(SwpSeqNo));
+
+        fprintf(stderr, "Receiver %d receiving msg: %s\n\tReturn AckNo = %d\n\n",
+            receiver->recv_id, (char*) inframe + sizeof(SwpSeqNo),
+            inframe_SeqNo);
+
         //Free raw_char_buf
         free(raw_char_buf);
-        
-        printf("<RECV_%d>:[%s]\n", receiver->recv_id, inframe->data);
+
+        printf("<RECV_%d>:[%s]\n", receiver->recv_id, inframe_payload->data);
+
+        //send ack
+        Frame *outframe = (Frame*) malloc(sizeof(Frame));
+        memcpy(outframe, &inframe_SeqNo, sizeof(SwpSeqNo));
+        char * outgoing_charbuf = convert_frame_to_char(outframe);
+        ll_append_node(outgoing_frames_head_ptr, outgoing_charbuf);
 
         free(inframe);
+        free(inframe_payload);
+        free(outframe);
         free(ll_inmsg_node);
     }
 }
 
 void * run_receiver(void * input_receiver)
-{    
+{
     struct timespec   time_spec;
     struct timeval    curr_timeval;
     const int WAIT_SEC_TIME = 0;
@@ -64,10 +86,10 @@ void * run_receiver(void * input_receiver)
     pthread_mutex_init(&receiver->buffer_mutex, NULL);
 
     while(1)
-    {    
+    {
         //NOTE: Add outgoing messages to the outgoing_frames_head pointer
         outgoing_frames_head = NULL;
-        gettimeofday(&curr_timeval, 
+        gettimeofday(&curr_timeval,
                      NULL);
 
         //Either timeout or get woken up because you've received a datagram
@@ -83,7 +105,7 @@ void * run_receiver(void * input_receiver)
         }
 
         //*****************************************************************************************
-        //NOTE: Anything that involves dequeing from the input frames should go 
+        //NOTE: Anything that involves dequeing from the input frames should go
         //      between the mutex lock and unlock, because other threads CAN/WILL access these structures
         //*****************************************************************************************
         pthread_mutex_lock(&receiver->buffer_mutex);
@@ -94,7 +116,7 @@ void * run_receiver(void * input_receiver)
         {
             //Nothing has arrived, do a timed wait on the condition variable (which releases the mutex). Again, you don't really need to do the timed wait.
             //A signal on the condition variable will wake up the thread and reacquire the lock
-            pthread_cond_timedwait(&receiver->buffer_cv, 
+            pthread_cond_timedwait(&receiver->buffer_cv,
                                    &receiver->buffer_mutex,
                                    &time_spec);
         }
@@ -103,7 +125,7 @@ void * run_receiver(void * input_receiver)
                              &outgoing_frames_head);
 
         pthread_mutex_unlock(&receiver->buffer_mutex);
-        
+
         //CHANGE THIS AT YOUR OWN RISK!
         //Send out all the frames user has appended to the outgoing_frames list
         int ll_outgoing_frame_length = ll_get_length(outgoing_frames_head);
@@ -111,7 +133,7 @@ void * run_receiver(void * input_receiver)
         {
             LLnode * ll_outframe_node = ll_pop_node(&outgoing_frames_head);
             char * char_buf = (char *) ll_outframe_node->value;
-            
+
             //The following function frees the memory for the char_buf object
             send_msg_to_senders(char_buf);
 

@@ -1,11 +1,18 @@
 #include "sender.h"
 
+//#define NDEBUG
+#include <assert.h>
+
 void init_sender(Sender * sender, int id)
 {
     //TODO: You should fill in this function as necessary
     sender->send_id = id;
     sender->input_cmdlist_head = NULL;
     sender->input_framelist_head = NULL;
+
+    sender->curSeqNum = 0; // SeqNum : 0 ~ 255
+    sender->LastAckReceived = 0 - 1;
+    sender->LastFrameSent = 0 - 1 ;
 }
 
 struct timeval * sender_get_next_expiring_timeval(Sender * sender)
@@ -23,7 +30,31 @@ void handle_incoming_acks(Sender * sender,
     //    2) Convert the char * buffer to a Frame data type
     //    3) Check whether the frame is corrupted
     //    4) Check whether the frame is for this sender
-    //    5) Do sliding window protocol for sender/receiver pair   
+    //    5) Do sliding window protocol for sender/receiver pair
+
+    int inframe_queue_length = ll_get_length(sender->input_framelist_head);
+
+    while (inframe_queue_length > 0)
+    {
+        //Pop a node off the front of the link list and update the count
+        LLnode * ll_inmsg_node = ll_pop_node(&sender->input_framelist_head);
+        inframe_queue_length = ll_get_length(sender->input_framelist_head);
+
+        char * raw_char_buf = (char *) ll_inmsg_node->value;
+
+        Frame * inframe = convert_char_to_frame(raw_char_buf);
+        free(raw_char_buf);
+
+        SwpSeqNo AckNo = '\0';
+        memcpy(&AckNo, inframe, sizeof(SwpSeqNo));
+
+        fprintf(stderr, "Sender %d receiving Ack: %d\n\n",
+            sender->send_id, AckNo);
+
+        free(inframe);
+        free(ll_inmsg_node);
+    }
+
 }
 
 
@@ -37,8 +68,8 @@ void handle_input_cmds(Sender * sender,
     //    4) Compute CRC and add CRC to Frame
 
     int input_cmd_length = ll_get_length(sender->input_cmdlist_head);
-    
-        
+
+
     //Recheck the command queue length to see if stdin_thread dumped a command on us
     input_cmd_length = ll_get_length(sender->input_cmdlist_head);
     while (input_cmd_length > 0)
@@ -50,7 +81,7 @@ void handle_input_cmds(Sender * sender,
         //Cast to Cmd type and free up the memory for the node
         Cmd * outgoing_cmd = (Cmd *) ll_input_cmd_node->value;
         free(ll_input_cmd_node);
-            
+
 
         //DUMMY CODE: Add the raw char buf to the outgoing_frames list
         //NOTE: You should not blindly send this message out!
@@ -65,9 +96,18 @@ void handle_input_cmds(Sender * sender,
         }
         else
         {
-            //This is probably ONLY one step you want
+            fprintf(stderr, "Sender %d sending msg: %s\n\tSeqNo = %d\n\n",
+                sender->send_id, outgoing_cmd->message,
+                sender->curSeqNum);
+
             Frame * outgoing_frame = (Frame *) malloc (sizeof(Frame));
-            strcpy(outgoing_frame->data, outgoing_cmd->message);
+
+            //attach SWP header
+            char SwpHdr = sender->curSeqNum++;
+            memcpy(outgoing_frame->data, &SwpHdr, sizeof(SwpSeqNo));
+
+            memcpy(outgoing_frame->data + sizeof(SwpSeqNo), outgoing_cmd->message,
+                sizeof(char) * strlen(outgoing_cmd->message));
 
             //At this point, we don't need the outgoing_cmd
             free(outgoing_cmd->message);
@@ -75,11 +115,12 @@ void handle_input_cmds(Sender * sender,
 
             //Convert the message to the outgoing_charbuf
             char * outgoing_charbuf = convert_frame_to_char(outgoing_frame);
-            ll_append_node(outgoing_frames_head_ptr,
-                           outgoing_charbuf);
+
+            ll_append_node(outgoing_frames_head_ptr, outgoing_charbuf);
+
             free(outgoing_frame);
         }
-    }   
+    }
 }
 
 
@@ -94,16 +135,18 @@ void handle_timedout_frames(Sender * sender,
 
 
 void * run_sender(void * input_sender)
-{    
+{
     struct timespec   time_spec;
     struct timeval    curr_timeval;
     const int WAIT_SEC_TIME = 0;
     const long WAIT_USEC_TIME = 100000;
-    Sender * sender = (Sender *) input_sender;    
+    Sender * sender = (Sender *) input_sender;
     LLnode * outgoing_frames_head;
     struct timeval * expiring_timeval;
     long sleep_usec_time, sleep_sec_time;
-    
+
+    const SwpSeqNo SendWindowSize = 8;
+
     //This incomplete sender thread, at a high level, loops as follows:
     //1. Determine the next time the thread should wake up
     //2. Grab the mutex protecting the input_cmd/inframe queues
@@ -115,11 +158,11 @@ void * run_sender(void * input_sender)
     pthread_mutex_init(&sender->buffer_mutex, NULL);
 
     while(1)
-    {    
+    {
         outgoing_frames_head = NULL;
 
         //Get the current time
-        gettimeofday(&curr_timeval, 
+        gettimeofday(&curr_timeval,
                      NULL);
 
         //time_spec is a data structure used to specify when the thread should wake up
@@ -146,10 +189,10 @@ void * run_sender(void * input_sender)
             if (sleep_usec_time > 0)
             {
                 sleep_sec_time = sleep_usec_time/1000000;
-                sleep_usec_time = sleep_usec_time % 1000000;   
+                sleep_usec_time = sleep_usec_time % 1000000;
                 time_spec.tv_sec += sleep_sec_time;
                 time_spec.tv_nsec += sleep_usec_time*1000;
-            }   
+            }
         }
 
         //Check to make sure we didn't "overflow" the nanosecond field
@@ -159,9 +202,9 @@ void * run_sender(void * input_sender)
             time_spec.tv_nsec -= 1000000000;
         }
 
-        
+
         //*****************************************************************************************
-        //NOTE: Anything that involves dequeing from the input frames or input commands should go 
+        //NOTE: Anything that involves dequeing from the input frames or input commands should go
         //      between the mutex lock and unlock, because other threads CAN/WILL access these structures
         //*****************************************************************************************
         pthread_mutex_lock(&sender->buffer_mutex);
@@ -169,14 +212,14 @@ void * run_sender(void * input_sender)
         //Check whether anything has arrived
         int input_cmd_length = ll_get_length(sender->input_cmdlist_head);
         int inframe_queue_length = ll_get_length(sender->input_framelist_head);
-        
+
         //Nothing (cmd nor incoming frame) has arrived, so do a timed wait on the sender's condition variable (releases lock)
         //A signal on the condition variable will wakeup the thread and reaquire the lock
         if (input_cmd_length == 0 &&
             inframe_queue_length == 0)
         {
-            
-            pthread_cond_timedwait(&sender->buffer_cv, 
+
+            pthread_cond_timedwait(&sender->buffer_cv,
                                    &sender->buffer_mutex,
                                    &time_spec);
         }
@@ -198,7 +241,7 @@ void * run_sender(void * input_sender)
         //CHANGE THIS AT YOUR OWN RISK!
         //Send out all the frames
         int ll_outgoing_frame_length = ll_get_length(outgoing_frames_head);
-        
+
         while(ll_outgoing_frame_length > 0)
         {
             LLnode * ll_outframe_node = ll_pop_node(&outgoing_frames_head);

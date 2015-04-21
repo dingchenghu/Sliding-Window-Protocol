@@ -19,7 +19,7 @@ int ll_get_length(LLnode * head)
     }
 }
 
-void ll_append_node(LLnode ** head_ptr, 
+void ll_append_node(LLnode ** head_ptr,
                     void * value)
 {
     LLnode * prev_last_node;
@@ -30,7 +30,7 @@ void ll_append_node(LLnode ** head_ptr,
     {
         return;
     }
-    
+
     //Init the value pntr
     head = (*head_ptr);
     new_node = (LLnode *) malloc(sizeof(LLnode));
@@ -89,6 +89,24 @@ LLnode * ll_pop_node(LLnode ** head_ptr)
     }
 }
 
+//Print out the whole linked list
+void print_ll(LLnode * head)
+{
+    if (head == NULL)
+    {
+        fprintf(stderr, "Linked list not exist\n");
+        return;
+    }
+    LLnode *tmp = head->next;
+    while (tmp != head)
+    {
+        fprintf(stderr, "%c", (char)tmp->value);
+        tmp = tmp->next;
+    }
+    fprintf(stderr, "\n");
+    return;
+}
+
 void ll_destroy_node(LLnode * node)
 {
     if (node->type == llt_string)
@@ -99,7 +117,7 @@ void ll_destroy_node(LLnode * node)
 }
 
 //Compute the difference in usec for two timeval objects
-long timeval_usecdiff(struct timeval *start_time, 
+long timeval_usecdiff(struct timeval *start_time,
                       struct timeval *finish_time)
 {
   long usec;
@@ -112,7 +130,7 @@ long timeval_usecdiff(struct timeval *start_time,
 //Print out messages entered by the user
 void print_cmd(Cmd * cmd)
 {
-    fprintf(stderr, "src=%d, dst=%d, message=%s\n", 
+    fprintf(stderr, "src=%d, dst=%d, message=%s\n",
            cmd->src_id,
            cmd->dst_id,
            cmd->message);
@@ -126,7 +144,7 @@ char * convert_frame_to_char(Frame * frame)
     memset(char_buffer,
            0,
            MAX_FRAME_SIZE);
-    memcpy(char_buffer, 
+    memcpy(char_buffer,
            frame->data,
            FRAME_PAYLOAD_SIZE);
     return char_buffer;
@@ -140,7 +158,7 @@ Frame * convert_char_to_frame(char * char_buf)
     memset(frame->data,
            0,
            sizeof(char)*sizeof(frame->data));
-    memcpy(frame->data, 
+    memcpy(frame->data,
            char_buf,
            sizeof(char)*sizeof(frame->data));
     return frame;
