@@ -60,6 +60,24 @@ typedef struct LLnode_t LLnode;
 
 #define SWP_WINDOW_SIZE 8
 
+#define MAX_FRAME_SIZE 64
+
+//TODO: You should change this!
+//Remember, your frame can be AT MOST 64 bytes!
+#define FRAME_PAYLOAD_SIZE 52
+#define FRAME_FLAG_SIZE 3
+#define FRAME_PARITY_SIZE 8
+
+struct Frame_t
+{
+    SwpSeqNo swpSeqNo; // 1 byte
+    unsigned char flag[FRAME_FLAG_SIZE];
+    char data[FRAME_PAYLOAD_SIZE];
+    uint64_t parity; // 8 bytes
+};
+typedef struct Frame_t Frame;
+
+
 //Receiver and sender data structures
 struct Receiver_t
 {
@@ -102,6 +120,8 @@ struct Sender_t
     //8 bits -> 8 next SeqNo
     //1 -> ack received
     uint8_t SwpWindow;
+
+    Frame framesInWindow[SWP_WINDOW_SIZE];
 };
 
 enum SendFrame_DstType
@@ -112,20 +132,6 @@ enum SendFrame_DstType
 
 typedef struct Sender_t Sender;
 typedef struct Receiver_t Receiver;
-
-
-#define MAX_FRAME_SIZE 64
-
-//TODO: You should change this!
-//Remember, your frame can be AT MOST 64 bytes!
-#define FRAME_PAYLOAD_SIZE 64
-#define PAYLOAD_SIZE 48
-
-struct Frame_t
-{
-    char data[FRAME_PAYLOAD_SIZE];
-};
-typedef struct Frame_t Frame;
 
 
 //Declare global variables here

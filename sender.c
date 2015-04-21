@@ -14,6 +14,9 @@ void init_sender(Sender * sender, int id)
     sender->LastFrameSent = 0 - 1 ;
 
     sender->SwpWindow = 0;
+
+    memset(sender->framesInWindow, (unsigned char) 0,
+        sizeof(Frame) * SWP_WINDOW_SIZE);
 }
 
 struct timeval * sender_get_next_expiring_timeval(Sender * sender)
@@ -46,8 +49,7 @@ void handle_incoming_acks(Sender * sender,
         Frame * inframe = convert_char_to_frame(raw_char_buf);
         free(raw_char_buf);
 
-        SwpSeqNo AckNo = '\0';
-        memcpy(&AckNo, inframe, sizeof(SwpSeqNo));
+        SwpSeqNo AckNo = inframe->swpSeqNo;
 
         //update SWP status
         sender->LastAckReceived = AckNo;
@@ -107,12 +109,8 @@ void handle_input_cmds(Sender * sender,
             Frame * outgoing_frame = (Frame *) malloc (sizeof(Frame));
             memset(outgoing_frame, 0, sizeof(Frame));
 
-            //attach SWP header
-            char SwpHdr = ++(sender->LastFrameSent);
-            memcpy(outgoing_frame->data, &SwpHdr, sizeof(SwpSeqNo));
-
-            memcpy(outgoing_frame->data + sizeof(SwpSeqNo), outgoing_cmd->message,
-                sizeof(char) * strlen(outgoing_cmd->message));
+            outgoing_frame -> swpSeqNo = ++(sender->LastFrameSent);
+            memcpy(outgoing_frame->data, outgoing_cmd->message, strlen(outgoing_cmd->message));
 
             //At this point, we don't need the outgoing_cmd
             free(outgoing_cmd->message);

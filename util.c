@@ -1,5 +1,8 @@
 #include "util.h"
 
+//#define NDEBUG
+#include <assert.h>
+
 //Linked list functions
 int ll_get_length(LLnode * head)
 {
@@ -139,28 +142,50 @@ void print_cmd(Cmd * cmd)
 
 char * convert_frame_to_char(Frame * frame)
 {
-    //You should implement this as necessary
+    //TODO You should implement this as necessary
     char * char_buffer = (char *) malloc(MAX_FRAME_SIZE);
-    memset(char_buffer,
-           0,
-           MAX_FRAME_SIZE);
-    memcpy(char_buffer,
-           frame->data,
-           FRAME_PAYLOAD_SIZE);
+    memset(char_buffer, 0, MAX_FRAME_SIZE);
+    char * curPos = char_buffer;
+
+    memcpy(curPos, &(frame->swpSeqNo), sizeof(SwpSeqNo));
+    curPos += sizeof(SwpSeqNo);
+
+    memcpy(curPos, frame->flag, FRAME_FLAG_SIZE);
+    curPos += FRAME_FLAG_SIZE;
+
+    memcpy(curPos, frame->data, FRAME_PAYLOAD_SIZE);
+    curPos += FRAME_PAYLOAD_SIZE;
+
+    memcpy(curPos, &(frame->parity), sizeof(uint64_t));
+    curPos += sizeof(uint64_t);
+
+    assert(curPos - char_buffer == 64);
+
     return char_buffer;
 }
 
 
 Frame * convert_char_to_frame(char * char_buf)
 {
-    //You should implement this as necessary
+    //TODO You should implement this as necessary
     Frame * frame = (Frame *) malloc(sizeof(Frame));
-    memset(frame->data,
-           0,
-           sizeof(char)*sizeof(frame->data));
-    memcpy(frame->data,
-           char_buf,
-           sizeof(char)*sizeof(frame->data));
+    memset(frame, 0, sizeof(Frame));
+    char * curPos = char_buf;
+
+    memcpy(&(frame->swpSeqNo), curPos, sizeof(SwpSeqNo));
+    curPos += sizeof(SwpSeqNo);
+
+    memcpy(frame->flag, curPos, FRAME_FLAG_SIZE);
+    curPos += FRAME_FLAG_SIZE;
+
+    memcpy(frame->data, curPos, FRAME_PAYLOAD_SIZE);
+    curPos += FRAME_PAYLOAD_SIZE;
+
+    memcpy(&(frame->parity), curPos, sizeof(uint64_t));
+    curPos += sizeof(uint64_t);
+
+    assert(curPos - char_buf == 64);
+
     return frame;
 }
 

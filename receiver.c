@@ -40,29 +40,24 @@ void handle_incoming_msgs(Receiver * receiver,
         char * raw_char_buf = (char *) ll_inmsg_node->value;
 
         Frame * inframe = convert_char_to_frame(raw_char_buf);
-        Frame * inframe_payload = convert_char_to_frame(raw_char_buf + sizeof(SwpSeqNo));
-
-        //get SeqNo
-        SwpSeqNo inframe_SeqNo = '\0';
-        memcpy(&inframe_SeqNo, inframe, sizeof(SwpSeqNo));
 
         fprintf(stderr, "Receiver %d receiving msg: %s\n\tReturn AckNo = %d\n\n",
-            receiver->recv_id, (char*) inframe + sizeof(SwpSeqNo),
-            inframe_SeqNo);
+            receiver->recv_id, inframe->data,
+            inframe->swpSeqNo);
 
         //Free raw_char_buf
         free(raw_char_buf);
 
-        printf("<RECV_%d>:[%s]\n", receiver->recv_id, inframe_payload->data);
+        printf("<RECV_%d>:[%s]\n", receiver->recv_id, inframe->data);
 
         //send ack
         Frame *outframe = (Frame*) malloc(sizeof(Frame));
-        memcpy(outframe, &inframe_SeqNo, sizeof(SwpSeqNo));
+        outframe->swpSeqNo = inframe->swpSeqNo;
+
         char * outgoing_charbuf = convert_frame_to_char(outframe);
         ll_append_node(outgoing_frames_head_ptr, outgoing_charbuf);
 
         free(inframe);
-        free(inframe_payload);
         free(outframe);
         free(ll_inmsg_node);
     }
