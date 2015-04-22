@@ -44,8 +44,8 @@ void handle_incoming_msgs(Receiver * receiver,
 
         Frame * inframe = convert_char_to_frame(raw_char_buf);
 
-        //not for this receiver
-        if(inframe->recv_id != receiver->recv_id){
+        //not for this receiver / corrupted
+        if(inframe->recv_id != receiver->recv_id || frameIsCorrupted(inframe)){
             free(raw_char_buf);
             free(inframe);
             free(ll_inmsg_node);
@@ -90,7 +90,7 @@ void handle_incoming_msgs(Receiver * receiver,
             memcpy(receiver->framesInWindow + n - 1, inframe, sizeof(Frame));
 
             //update SWP window status
-            receiver->SwpWindow ^= (1 << (SWP_WINDOW_SIZE - 1 - n)) ;
+            receiver->SwpWindow ^= (1 << (SWP_WINDOW_SIZE - 1 - n));
 
             fprintf(stderr, "\tSwpSeqNo = %d, new SwpWindow = %X\n\n", inframe->swpSeqNo, receiver->SwpWindow);
         }
@@ -102,6 +102,7 @@ void handle_incoming_msgs(Receiver * receiver,
         outframe->swpSeqNo = inframe->swpSeqNo;
         outframe->send_id = inframe->recv_id;
         outframe->recv_id = inframe->send_id;
+        frameAddCRC32(outframe);
 
         char * outgoing_charbuf = convert_frame_to_char(outframe);
         ll_append_node(outgoing_frames_head_ptr, outgoing_charbuf);

@@ -62,7 +62,7 @@ void handle_incoming_acks(Sender * sender,
         Frame * inframe = convert_char_to_frame(raw_char_buf);
         free(raw_char_buf);
 
-        if(inframe->recv_id != sender->send_id){
+        if(inframe->recv_id != sender->send_id || frameIsCorrupted(inframe)){
             free(inframe);
             free(ll_inmsg_node);
             continue;
@@ -162,6 +162,8 @@ void handle_input_cmds(Sender * sender,
             outgoing_frame->send_id = outgoing_cmd->src_id;
             outgoing_frame->recv_id = outgoing_cmd->dst_id;
             memcpy(outgoing_frame->data, outgoing_cmd->message, strlen(outgoing_cmd->message));
+            frameAddCRC32(outgoing_frame);
+            assert(frameIsCorrupted(outgoing_frame) == 0);
 
             /*
             fprintf(stderr, "Sender %d sending a frame: \n\t",
@@ -230,6 +232,8 @@ void handle_timedout_frames(Sender * sender,
                 //fprintf(stderr, "\t%d ", i);
                 //printFrame(outgoing_frame);
                 //fprintf(stderr, "\n");
+                frameAddCRC32(outgoing_frame);
+                assert(frameIsCorrupted(outgoing_frame) == 0);
 
                 char * outgoing_charbuf = convert_frame_to_char(outgoing_frame);
                 ll_append_node(outgoing_frames_head_ptr, outgoing_charbuf);
