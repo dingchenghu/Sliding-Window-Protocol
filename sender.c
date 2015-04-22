@@ -22,6 +22,7 @@ void init_sender(Sender * sender, int id)
 struct timeval * sender_get_next_expiring_timeval(Sender * sender)
 {
     //TODO: You should fill in this function so that it returns the next timeout that should occur
+
     return NULL;
 }
 
@@ -34,7 +35,7 @@ void rightShiftSWPWindow(Sender * sender, int n){
     sender->SwpWindow >>= n;
 
     //left shift framesInWindow, drop the old backups
-    memcpy(sender->framesInWindow, sender->framesInWindow + n, sizeof(Frame) * n);
+    memmove(sender->framesInWindow, sender->framesInWindow + n, sizeof(Frame) * n);
 }
 
 
@@ -61,12 +62,20 @@ void handle_incoming_acks(Sender * sender,
         Frame * inframe = convert_char_to_frame(raw_char_buf);
         free(raw_char_buf);
 
+        if(inframe->recv_id != sender->send_id){
+            free(inframe);
+            free(ll_inmsg_node);
+            continue;
+        }
+
         SwpSeqNo AckNo = inframe->swpSeqNo;
-        fprintf(stderr, "Sender %d receiving Ack: %d\n",
-            sender->send_id, AckNo);
-        fprintf(stderr, "\tCurrent: LFS = %d, LAR = %d, ACK - LAR = %d\n",
+
+        /*
+        fprintf(stderr, "Sender %d receiving Ack: %d\n\tCurrent: LFS = %d, LAR = %d, ACK - LAR = %d\n\n",
+            sender->send_id, AckNo,
             sender->LastFrameSent, sender->LastAckReceived,
             SwpSeqNo_minus(AckNo, sender->LastAckReceived));
+        */
 
         //update SWP status
 
@@ -82,19 +91,19 @@ void handle_incoming_acks(Sender * sender,
                     break;
             }
             //right shift the SWP window
-            fprintf(stderr, "\tSWP windows flag = %X\n", sender->SwpWindow);
+            //fprintf(stderr, "\tSWP windows flag = %X\n", sender->SwpWindow);
             rightShiftSWPWindow(sender, n);
-            fprintf(stderr, "\tRightShift SWP window by %d, new LAR = %d\n\n", n, sender->LastAckReceived);
+            //fprintf(stderr, "RightShift SWP window by %d, new LAR = %d\n\n", n, sender->LastAckReceived);
         }
         else if(AckNo > sender->LastAckReceived || 255 - sender->LastAckReceived + AckNo + 1 < SWP_WINDOW_SIZE)
         {
             int i = SWP_WINDOW_SIZE - SwpSeqNo_minus(AckNo, sender->LastAckReceived);
             sender->SwpWindow ^= (1 << i);
 
-            fprintf(stderr, "\tSWP windows flag = %X\n\n", sender->SwpWindow);
+            //fprintf(stderr, "\tSWP windows flag = %X\n\n", sender->SwpWindow);
         }
         else
-            while(0); // do nothing
+            //fprintf(stderr, "\tdo nothing about SWP windows\n\n"); // do nothing
 
         free(inframe);
         free(ll_inmsg_node);
@@ -114,7 +123,6 @@ void handle_input_cmds(Sender * sender,
 
     int input_cmd_length = ll_get_length(sender->input_cmdlist_head);
 
-
     //Recheck the command queue length to see if stdin_thread dumped a command on us
     input_cmd_length = ll_get_length(sender->input_cmdlist_head);
     while (input_cmd_length > 0)
@@ -127,6 +135,11 @@ void handle_input_cmds(Sender * sender,
         Cmd * outgoing_cmd = (Cmd *) ll_input_cmd_node->value;
         free(ll_input_cmd_node);
 
+        //not for this sender
+        if(outgoing_cmd->src_id != sender->send_id){
+            free(outgoing_cmd);
+            continue;
+        }
 
         //DUMMY CODE: Add the raw char buf to the outgoing_frames list
         //NOTE: You should not blindly send this message out!
@@ -145,17 +158,21 @@ void handle_input_cmds(Sender * sender,
             Frame * outgoing_frame = (Frame *) malloc (sizeof(Frame));
             memset(outgoing_frame, 0, sizeof(Frame));
 
-            outgoing_frame -> swpSeqNo = ++(sender->LastFrameSent);
+            outgoing_frame->swpSeqNo = ++(sender->LastFrameSent);
+            outgoing_frame->send_id = outgoing_cmd->src_id;
+            outgoing_frame->recv_id = outgoing_cmd->dst_id;
             memcpy(outgoing_frame->data, outgoing_cmd->message, strlen(outgoing_cmd->message));
 
+            /*
             fprintf(stderr, "Sender %d sending a frame: \n\t",
                 sender->send_id);
             printFrame(outgoing_frame);
 
-            //backup frame
             fprintf(stderr, "\tFrame backuped, LFS = %d, LAR = %d\n\n",
                 sender->LastFrameSent, sender->LastAckReceived);
+            */
 
+            //backup frame
             assert(sender->LastAckReceived != sender->LastFrameSent);
             if(sender->LastAckReceived != sender->LastFrameSent){
                 memcpy(sender->framesInWindow + SwpSeqNo_minus(sender->LastFrameSent, sender->LastAckReceived) - 1,
@@ -185,16 +202,20 @@ void handle_timedout_frames(Sender * sender,
     //    2) Locate frames that are timed out and add them to the outgoing frames
     //    3) Update the next timeout field on the outgoing frames
 
+    /*
     fprintf(stderr, "Sender %d timeout\n", sender->send_id);
     fprintf(stderr, "\tLFS = %d, LAR = %d\n",
             sender->LastFrameSent, sender-> LastAckReceived);
+    */
 
     if(sender->LastFrameSent == sender-> LastAckReceived){
-        fprintf(stderr, "\tLFS == LAR, do nothing\n");
+        //fprintf(stderr, "\tLFS == LAR, do nothing\n");
+        while(0); //do nothing
     }
     else
     {
-        fprintf(stderr, "\tLFS != LAR, retransimitting...\n");
+        //fprintf(stderr, "\tLFS != LAR, retransimitting...\n\tSWP windows flag = %X\n\n",
+        //    sender->SwpWindow);
         for(int i = 0; i < SWP_WINDOW_SIZE; i++){
             int n = SWP_WINDOW_SIZE - 1 - i;
 
@@ -206,8 +227,9 @@ void handle_timedout_frames(Sender * sender,
                 Frame * outgoing_frame = (Frame *) malloc (sizeof(Frame));
                 memcpy(outgoing_frame, sender->framesInWindow + i, sizeof(Frame));
 
-                fprintf(stderr, "\t%d.", i);
-                printFrame(outgoing_frame);
+                //fprintf(stderr, "\t%d ", i);
+                //printFrame(outgoing_frame);
+                //fprintf(stderr, "\n");
 
                 char * outgoing_charbuf = convert_frame_to_char(outgoing_frame);
                 ll_append_node(outgoing_frames_head_ptr, outgoing_charbuf);
@@ -215,10 +237,7 @@ void handle_timedout_frames(Sender * sender,
                 free(outgoing_frame);
             }
         }
-
     }
-
-    fprintf(stderr, "\n");
 }
 
 
@@ -271,13 +290,17 @@ void * run_sender(void * input_sender)
             sleep_usec_time = timeval_usecdiff(&curr_timeval,
                                                expiring_timeval);
 
+            free(expiring_timeval);
+
             //Sleep if the difference is positive
+            assert(sleep_usec_time > 0);
+
             if (sleep_usec_time > 0)
             {
-                sleep_sec_time = sleep_usec_time/1000000;
+                sleep_sec_time = sleep_usec_time / 1000000;
                 sleep_usec_time = sleep_usec_time % 1000000;
                 time_spec.tv_sec += sleep_sec_time;
-                time_spec.tv_nsec += sleep_usec_time*1000;
+                time_spec.tv_nsec += sleep_usec_time * 1000;
             }
         }
 
@@ -329,8 +352,8 @@ void * run_sender(void * input_sender)
         int ll_outgoing_frame_length = ll_get_length(outgoing_frames_head);
 
         if(SwpSeqNo_minus(sender->LastFrameSent, sender-> LastAckReceived) > SWP_WINDOW_SIZE){
-            fprintf(stderr, "Sender %d : LFS = %d, LAR = %d, abort sending. \n\n",
-                    sender->send_id, sender->LastFrameSent, sender-> LastAckReceived);
+            //fprintf(stderr, "Sender %d : LFS = %d, LAR = %d, abort sending. \n\n",
+            //        sender->send_id, sender->LastFrameSent, sender-> LastAckReceived);
             continue;
         }
 

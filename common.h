@@ -101,6 +101,8 @@ struct Receiver_t
     //8 bits -> 8 next SeqNo
     //1 -> seq received
     uint8_t SwpWindow;
+
+    Frame framesInWindow[SWP_WINDOW_SIZE - 1];
 };
 
 struct Sender_t
