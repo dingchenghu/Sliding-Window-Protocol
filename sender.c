@@ -23,6 +23,20 @@ struct timeval * sender_get_next_expiring_timeval(Sender * sender)
 {
     //TODO: You should fill in this function so that it returns the next timeout that should occur
 
+    struct timeval curr_timeval;
+    gettimeofday(&curr_timeval, NULL);
+
+    struct timeval *t = (struct timeval*) malloc(sizeof(struct timeval));
+
+    t->tv_sec = curr_timeval.tv_sec;
+    t->tv_usec = curr_timeval.tv_usec + 5000;
+
+    if (t->tv_usec >= 1000000)
+    {
+        t->tv_sec++;
+        t->tv_usec -= 1000000;
+    }
+
     return NULL;
 }
 
@@ -70,16 +84,18 @@ void handle_incoming_acks(Sender * sender,
 
         SwpSeqNo AckNo = inframe->swpSeqNo;
 
-        /*
+
         fprintf(stderr, "Sender %d receiving Ack: %d\n\tCurrent: LFS = %d, LAR = %d, ACK - LAR = %d\n\n",
             sender->send_id, AckNo,
             sender->LastFrameSent, sender->LastAckReceived,
             SwpSeqNo_minus(AckNo, sender->LastAckReceived));
-        */
+
 
         //update SWP status
+        sender->SwpWindow ^= (1 << (SWP_WINDOW_SIZE - SwpSeqNo_minus(AckNo, sender->LastAckReceived)));
 
-        if(SwpSeqNo_minus(AckNo, sender->LastAckReceived) == 1){
+        if(SwpSeqNo_minus(AckNo, sender->LastAckReceived) == 1)
+        {
 
             sender->SwpWindow ^= 1 << (SWP_WINDOW_SIZE - 1);
 
@@ -103,7 +119,27 @@ void handle_incoming_acks(Sender * sender,
             //fprintf(stderr, "\tSWP windows flag = %X\n\n", sender->SwpWindow);
         }
         else
-            //fprintf(stderr, "\tdo nothing about SWP windows\n\n"); // do nothing
+        {
+            // bug fix : stuck @ SwpSeqNo_minus(AckNo, sender->LastAckReceived) == 0
+            if(SwpSeqNo_minus(AckNo, sender->LastAckReceived) == 0)
+            {
+                if((sender->SwpWindow & (1 << 7)) == (1 << 7))
+                {
+                    int n = 0;
+                    for(int i = SWP_WINDOW_SIZE - 2; i >= 0; i--){
+
+                        if((sender->SwpWindow & (1 << i)) == (1 << i))
+                            n += 1;
+                        else
+                            break;
+                    }
+                    if(n > 0)
+                        rightShiftSWPWindow(sender, n);
+                }
+            }
+
+            fprintf(stderr, "\tSWP windows flag = %X\n\n", sender->SwpWindow);
+        }
 
         free(inframe);
         free(ll_inmsg_node);
@@ -174,8 +210,9 @@ void handle_input_cmds(Sender * sender,
                 sender->LastFrameSent, sender->LastAckReceived);
             */
 
+            //assert(sender->LastAckReceived != sender->LastFrameSent);
+
             //backup frame
-            assert(sender->LastAckReceived != sender->LastFrameSent);
             if(sender->LastAckReceived != sender->LastFrameSent){
                 memcpy(sender->framesInWindow + SwpSeqNo_minus(sender->LastFrameSent, sender->LastAckReceived) - 1,
                     outgoing_frame, sizeof(Frame));
