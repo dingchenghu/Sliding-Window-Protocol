@@ -132,7 +132,6 @@ void handle_incoming_acks(Sender * sender,
             sender->LastFrameSent, sender->LastAckReceived,
             SwpSeqNo_minus(AckNo, sender->LastAckReceived));
 
-
         //update SWP status
         sender->SwpWindow ^= (1 << (SWP_WINDOW_SIZE - SwpSeqNo_minus(AckNo, sender->LastAckReceived)));
 
@@ -184,6 +183,9 @@ void handle_input_cmds(Sender * sender,
     input_cmd_length = ll_get_length(sender->input_cmdlist_head);
     while (input_cmd_length > 0)
     {
+        if((SwpSeqNo_minus(sender->LastFrameSent, sender-> LastAckReceived) >= SWP_WINDOW_SIZE))
+            break;
+
         //Pop a node off and update the input_cmd_length
         LLnode * ll_input_cmd_node = ll_pop_node(&sender->input_cmdlist_head);
         input_cmd_length = ll_get_length(sender->input_cmdlist_head);
