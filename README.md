@@ -2,6 +2,6 @@
 
 TODO:
 
-tune timeout of sender
-support long message
-support multiple senders / receivers
+support long message;
+
+support multiple senders / receivers;
