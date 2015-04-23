@@ -114,18 +114,6 @@ int main(int argc, char *argv[])
 
 
     //DO NOT CHANGE THIS
-    //Create the standard input thread
-    int rc = pthread_create(&stdin_thread,
-                            NULL,
-                            run_stdinthread,
-                            (void *) 0);
-    if (rc)
-    {
-        fprintf(stderr, "ERROR; return code from pthread_create() is %d\n", rc);
-        exit(-1);
-    }
-
-    //DO NOT CHANGE THIS
     //Init the pthreads data structure
     sender_threads = (pthread_t *) malloc(sizeof(pthread_t) * glb_senders_array_length);
     receiver_threads = (pthread_t *) malloc(sizeof(pthread_t) * glb_receivers_array_length);
@@ -158,6 +146,18 @@ int main(int argc, char *argv[])
     {
         init_receiver(&glb_receivers_array[i], i);
         fprintf(stderr, "   recv_id=%d\n", i);
+    }
+
+    //DO NOT CHANGE THIS
+    //Create the standard input thread
+    int rc = pthread_create(&stdin_thread,
+                            NULL,
+                            run_stdinthread,
+                            (void *) 0);
+    if (rc)
+    {
+        fprintf(stderr, "ERROR; return code from pthread_create() is %d\n", rc);
+        exit(-1);
     }
 
     //Spawn sender threads

@@ -5,6 +5,9 @@
 
 void init_sender(Sender * sender, int id)
 {
+    pthread_cond_init(&sender->buffer_cv, NULL);
+    pthread_mutex_init(&sender->buffer_mutex, NULL);
+
     //TODO: You should fill in this function as necessary
     sender->send_id = id;
     sender->input_cmdlist_head = NULL;
@@ -70,12 +73,13 @@ void retransimit(Sender * sender, LLnode ** outgoing_frames_head_ptr){
         if((sender->SwpWindow & (1 << n)) == 0)
         {
             Frame * outgoing_frame = (Frame *) malloc (sizeof(Frame));
-            memcpy(outgoing_frame, (sender->framesInWindow) + i, sizeof(Frame));
+            memcpy(outgoing_frame, sender->framesInWindow + i, sizeof(Frame));
 
             //fprintf(stderr, " SWP = %X, \t%d ", sender->SwpWindow, i);
             //printFrame(outgoing_frame);
             //fprintf(stderr, "\n");
             //frameAddCRC32(outgoing_frame);
+
             assert(frameIsCorrupted(outgoing_frame) == 0);
 
             char * outgoing_charbuf = convert_frame_to_char(outgoing_frame);
@@ -131,10 +135,12 @@ void handle_incoming_acks(Sender * sender,
             continue;
         }
 
+        /*
         fprintf(stderr, "Sender %d receiving Ack: %d\n\tCurrent: LFS = %d, LAR = %d, ACK - LAR = %d\n",
             sender->send_id, AckNo,
             sender->LastFrameSent, sender->LastAckReceived,
             SwpSeqNo_minus(AckNo, sender->LastAckReceived));
+        */
 
         //update SWP status
         sender->SwpWindow |= (1 << (SWP_WINDOW_SIZE - SwpSeqNo_minus(AckNo, sender->LastAckReceived)));
@@ -151,11 +157,14 @@ void handle_incoming_acks(Sender * sender,
                 else
                     break;
             }
+
+            /*
             //right shift the SWP window
             fprintf(stderr, "\tSWP windows flag = %X\n", sender->SwpWindow);
             rightShiftSWPWindow(sender, n);
             fprintf(stderr, "RightShift SWP window by %d, new LAR = %d\n\n", n, sender->LastAckReceived);
             fprintf(stderr, "\n");
+            */
 
         }
         // Negative ack
@@ -173,14 +182,16 @@ void handle_incoming_acks(Sender * sender,
                 else
                     break;
             }
+
             //right shift the SWP window
-            fprintf(stderr, "\tSWP windows flag = %X\n", sender->SwpWindow);
+            //fprintf(stderr, "\tSWP windows flag = %X\n", sender->SwpWindow);
             rightShiftSWPWindow(sender, n);
-            fprintf(stderr, "RightShift SWP window by %d, new LAR = %d\n\n", n, sender->LastAckReceived);
-            fprintf(stderr, "\n");
+            //fprintf(stderr, "RightShift SWP window by %d, new LAR = %d\n\n", n, sender->LastAckReceived);
+            //fprintf(stderr, "\n");
+
         }
 
-        fprintf(stderr, "\tSWP windows flag = %X\n\n", sender->SwpWindow);
+        //fprintf(stderr, "\tSWP windows flag = %X\n\n", sender->SwpWindow);
 
         free(inframe);
         free(ll_inmsg_node);
@@ -206,7 +217,9 @@ void handle_input_cmds(Sender * sender,
     while (input_cmd_length > 0)
     {
         if((SwpSeqNo_minus(sender->LastFrameSent, sender-> LastAckReceived) >= SWP_WINDOW_SIZE))
+        {
             break;
+        }
 
         //Pop a node off and update the input_cmd_length
         LLnode * ll_input_cmd_node = ll_pop_node(&sender->input_cmdlist_head);
@@ -246,13 +259,14 @@ void handle_input_cmds(Sender * sender,
             frameAddCRC32(outgoing_frame);
             assert(frameIsCorrupted(outgoing_frame) == 0);
 
-
+            /*
             fprintf(stderr, "Sender %d sending a frame: \n\t",
                 sender->send_id);
             printFrame(outgoing_frame);
 
             fprintf(stderr, "\tFrame backuped, LFS = %d, LAR = %d\n\n",
                 sender->LastFrameSent, sender->LastAckReceived);
+            */
 
             //assert(sender->LastAckReceived != sender->LastFrameSent);
 
@@ -323,9 +337,6 @@ void * run_sender(void * input_sender)
     //3. Dequeues messages from the input queue and adds them to the outgoing_frames list
     //4. Releases the lock
     //5. Sends out the messages
-
-    pthread_cond_init(&sender->buffer_cv, NULL);
-    pthread_mutex_init(&sender->buffer_mutex, NULL);
 
     while(1)
     {

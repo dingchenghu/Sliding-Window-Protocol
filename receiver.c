@@ -3,9 +3,11 @@
 //#define NDEBUG
 #include <assert.h>
 
-void init_receiver(Receiver * receiver,
-                   int id)
+void init_receiver(Receiver * receiver, int id)
 {
+    pthread_cond_init(&receiver->buffer_cv, NULL);
+    pthread_mutex_init(&receiver->buffer_mutex, NULL);
+
     receiver->recv_id = id;
     receiver->input_framelist_head = NULL;
 
@@ -90,14 +92,16 @@ void handle_incoming_msgs(Receiver * receiver,
         {
             sendAck = 1;
             receiver->LastFrameReceived += 1;
-            printf("<RECV_%d>:[%s]\n", receiver->recv_id, inframe->data);
 
+            assert(frameIsCorrupted(inframe) == 0);
+            printf("<RECV_%d>:[%s]\n", receiver->recv_id, inframe->data);
 
             if((receiver->SwpWindow & (1 << 7)) == (1 << 7))
             {
                 while((receiver->SwpWindow & (1 << 7)) == (1 << 7))
                 {
                     //fprintf(stderr, "in while @ receiver\n");
+                    assert(frameIsCorrupted(receiver->framesInWindow) == 0);
                     printf("<RECV_%d>:[%s]\n", receiver->recv_id, receiver->framesInWindow->data);
 
                     assert(receiver->framesInWindow->swpSeqNo != inframe->swpSeqNo);
@@ -180,9 +184,6 @@ void * run_receiver(void * input_receiver)
     //3. Dequeues messages from the input_msg queue and prints them
     //4. Releases the lock
     //5. Sends out any outgoing messages
-
-    pthread_cond_init(&receiver->buffer_cv, NULL);
-    pthread_mutex_init(&receiver->buffer_mutex, NULL);
 
     while(1)
     {

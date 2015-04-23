@@ -60,7 +60,7 @@ typedef struct LLnode_t LLnode;
 
 #define SWP_WINDOW_SIZE 8
 
-#define MAX_FRAME_SIZE 64
+#define MAX_FRAME_SIZE 60
 
 //TODO: You should change this!
 //Remember, your frame can be AT MOST 64 bytes!

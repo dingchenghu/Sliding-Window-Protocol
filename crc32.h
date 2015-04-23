@@ -6,7 +6,7 @@
 #include "common.h"
 #include "util.h"
 
-uint32_t crc32(char *input, int length);
+uint32_t crc32(char *buf, size_t len);
 
 void frameAddCRC32(Frame *frame);
 uint8_t frameIsCorrupted(Frame *frame);

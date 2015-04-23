@@ -1,23 +1,20 @@
 #include "crc32.h"
 
-uint32_t crc32(char *message, int length)
-{
-	int i, j;
-	unsigned int byte, crc, mask;
+#define CRCPOLY 0x82f63b78
 
-	crc = 0xFFFFFFFF;
-	for(i = 0; i < length; i++)
-	{
-		byte = message[i];
-		crc = crc ^ byte;
-		for (j = 7; j >= 0; j--)
-		{
-			mask = -(crc & 1);
-			crc = (crc >> 1) ^ (0xEDB88320 & mask);
-		}
-		i = i + 1;
-   }
-   return ~crc;
+uint32_t crc32(char *buf, size_t len)
+{
+
+	uint32_t crc = 0;
+    int k;
+
+    crc = ~crc;
+    while (len--) {
+        crc ^= *buf++;
+        for (k = 0; k < 8; k++)
+            crc = crc & 1 ? (crc >> 1) ^ CRCPOLY : crc >> 1;
+    }
+    return ~crc;
 }
 
 /*
@@ -37,15 +34,17 @@ typedef struct Frame_t Frame;
 
 void frameAddCRC32(Frame *frame){
 	char* char_buf = convert_frame_to_char(frame);
-	frame->parity = crc32(char_buf, sizeof(SwpSeqNo) + sizeof(uint16_t) * 2
-		+ FRAME_FLAG_SIZE + FRAME_PAYLOAD_SIZE);
+	//frame->parity = crc32(char_buf, sizeof(SwpSeqNo) + sizeof(uint16_t) * 2
+	//	+ FRAME_FLAG_SIZE + FRAME_PAYLOAD_SIZE);
+	frame->parity = crc32(char_buf, 56);
 	free(char_buf);
 }
 
 uint8_t frameIsCorrupted(Frame *frame){
 	char* char_buf = convert_frame_to_char(frame);
-	if(frame->parity == crc32(char_buf, sizeof(SwpSeqNo) + sizeof(uint16_t) * 2
-		+ FRAME_FLAG_SIZE + FRAME_PAYLOAD_SIZE))
+	//if(frame->parity == crc32(char_buf, sizeof(SwpSeqNo) + sizeof(uint16_t) +
+	//	sizeof(uint16_t) + FRAME_FLAG_SIZE + FRAME_PAYLOAD_SIZE))
+	if(frame->parity == crc32(char_buf, 56))
 		return 0;
 	else
 		return 1;

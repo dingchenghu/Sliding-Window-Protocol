@@ -14,7 +14,8 @@ void send_frame(char * char_buffer,
     int prob_prec = 1000;
     int drop_prob = (int) prob_prec * glb_sysconfig.drop_prob;
     int corrupt_prob = (int) prob_prec * glb_sysconfig.corrupt_prob;
-    int num_corrupt_bits = CORRUPTION_BITS;
+    //int num_corrupt_bits = CORRUPTION_BITS;
+    int num_corrupt_bits = 1;
     int corrupt_indices[num_corrupt_bits];
 
     //Pick a random number
@@ -27,7 +28,7 @@ void send_frame(char * char_buffer,
         free(char_buffer);
         return;
     }
-    
+
     //Determine whether to corrupt bits
     random_num = rand() % prob_prec;
     if (random_num < corrupt_prob)
@@ -63,7 +64,7 @@ void send_frame(char * char_buffer,
         memcpy(per_recv_char_buffer,
                char_buffer,
                MAX_FRAME_SIZE);
-        
+
         //Corrupt the bits (inefficient, should just corrupt one copy and memcpy it
         if (random_num < corrupt_prob)
         {
@@ -74,7 +75,7 @@ void send_frame(char * char_buffer,
             {
                 random_index = corrupt_indices[j];
                 per_recv_char_buffer[random_index] = ~per_recv_char_buffer[random_index];
-            }            
+            }
         }
 
         if (dst_type == ReceiverDst)
@@ -96,7 +97,7 @@ void send_frame(char * char_buffer,
             pthread_mutex_unlock(&dst->buffer_mutex);
         }
     }
-    
+
     free(char_buffer);
     return;
 }
