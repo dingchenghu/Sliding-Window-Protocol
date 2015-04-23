@@ -35,7 +35,7 @@ struct timeval * sender_get_next_expiring_timeval(Sender * sender)
     struct timeval *t = (struct timeval*) malloc(sizeof(struct timeval));
 
     t->tv_sec = curr_timeval.tv_sec;
-    t->tv_usec = curr_timeval.tv_usec + 50000;
+    t->tv_usec = curr_timeval.tv_usec + 100000;
 
     if (t->tv_usec >= 1000000)
     {
@@ -129,18 +129,18 @@ void handle_incoming_acks(Sender * sender,
             retransimit(sender, outgoing_frames_head_ptr);
 
         if(inframe->recv_id != sender->send_id || frameIsCorrupted(inframe)
-            || SwpSeqNo_minus(AckNo, sender->LastAckReceived) > SWP_WINDOW_SIZE){
+            || ((SwpSeqNo_minus(AckNo, sender->LastAckReceived) > SWP_WINDOW_SIZE)
+            && SwpSeqNo_minus(AckNo, sender->LastAckReceived) < 128))
+        {
             free(inframe);
             free(ll_inmsg_node);
             continue;
         }
 
-        /*
         fprintf(stderr, "Sender %d receiving Ack: %d\n\tCurrent: LFS = %d, LAR = %d, ACK - LAR = %d\n",
             sender->send_id, AckNo,
             sender->LastFrameSent, sender->LastAckReceived,
             SwpSeqNo_minus(AckNo, sender->LastAckReceived));
-        */
 
         //update SWP status
         sender->SwpWindow |= (1 << (SWP_WINDOW_SIZE - SwpSeqNo_minus(AckNo, sender->LastAckReceived)));
@@ -151,20 +151,21 @@ void handle_incoming_acks(Sender * sender,
             //sender->SwpWindow |= 1 << (SWP_WINDOW_SIZE - 1);
 
             int n = 1;
-            for(int i = SWP_WINDOW_SIZE - 2; i >= 0; i--){
-                if((sender->SwpWindow & (1 << i)) == i << i)
+
+            for(int i = SWP_WINDOW_SIZE - 2; i >= 0; i--)
+            {
+                if((sender->SwpWindow & (1 << i)) == (1 << i))
                     n += 1;
                 else
                     break;
             }
 
-            /*
             //right shift the SWP window
             fprintf(stderr, "\tSWP windows flag = %X\n", sender->SwpWindow);
             rightShiftSWPWindow(sender, n);
-            fprintf(stderr, "RightShift SWP window by %d, new LAR = %d\n\n", n, sender->LastAckReceived);
+            fprintf(stderr, "RightShift SWP window by %d, SWP = %X, new LAR = %d\n\n",
+                n, sender->SwpWindow, sender->LastAckReceived);
             fprintf(stderr, "\n");
-            */
 
         }
         // Negative ack
@@ -177,16 +178,17 @@ void handle_incoming_acks(Sender * sender,
         {
             int n = 1;
             for(int i = SWP_WINDOW_SIZE - 2; i >= 0; i--){
-                if((sender->SwpWindow & (1 << i)) == i << i)
+                if((sender->SwpWindow & (1 << i)) == (1 << i))
                     n += 1;
                 else
                     break;
             }
 
             //right shift the SWP window
-            //fprintf(stderr, "\tSWP windows flag = %X\n", sender->SwpWindow);
+            fprintf(stderr, "\tSWP windows flag = %X\n", sender->SwpWindow);
             rightShiftSWPWindow(sender, n);
-            //fprintf(stderr, "RightShift SWP window by %d, new LAR = %d\n\n", n, sender->LastAckReceived);
+            fprintf(stderr, "RightShift SWP window by %d, new SWP = %X, LAR = %d\n\n",
+                n, sender->SwpWindow, sender->LastAckReceived);
             //fprintf(stderr, "\n");
 
         }
@@ -213,6 +215,11 @@ void handle_input_cmds(Sender * sender,
 
     //Recheck the command queue length to see if stdin_thread dumped a command on us
     input_cmd_length = ll_get_length(sender->input_cmdlist_head);
+
+    if(input_cmd_length == 0 && sender->LastAckReceived != sender->LastFrameSent)
+    {
+        retransimit(sender, outgoing_frames_head_ptr);
+    }
 
     while (input_cmd_length > 0)
     {
@@ -259,14 +266,14 @@ void handle_input_cmds(Sender * sender,
             frameAddCRC32(outgoing_frame);
             assert(frameIsCorrupted(outgoing_frame) == 0);
 
-            /*
+
             fprintf(stderr, "Sender %d sending a frame: \n\t",
                 sender->send_id);
             printFrame(outgoing_frame);
 
             fprintf(stderr, "\tFrame backuped, LFS = %d, LAR = %d\n\n",
                 sender->LastFrameSent, sender->LastAckReceived);
-            */
+
 
             //assert(sender->LastAckReceived != sender->LastFrameSent);
 
@@ -403,7 +410,6 @@ void * run_sender(void * input_sender)
         if (input_cmd_length == 0 &&
             inframe_queue_length == 0)
         {
-
             pthread_cond_timedwait(&sender->buffer_cv,
                                    &sender->buffer_mutex,
                                    &time_spec);
