@@ -44,6 +44,7 @@ int main(int argc, char *argv[])
     //Prepare other variables and seed the psuedo random number generator
     glb_receivers_array_length = -1;
     glb_senders_array_length = -1;
+
     srand(time(NULL));
 
     //Parse out the command line arguments
