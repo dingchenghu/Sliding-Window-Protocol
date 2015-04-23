@@ -70,6 +70,7 @@ void handle_incoming_msgs(Receiver * receiver,
             }
         */
 
+
         /*
         fprintf(stderr, "Receiver %d receiving a frame: \n\t", receiver->recv_id);
         printFrame(inframe);

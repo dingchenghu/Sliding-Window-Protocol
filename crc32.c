@@ -4,14 +4,12 @@
 
 uint32_t crc32(char *buf, size_t len)
 {
-
 	uint32_t crc = 0;
-    int k;
-
     crc = ~crc;
+	int i;
     while (len--) {
         crc ^= *buf++;
-        for (k = 0; k < 8; k++)
+        for (i = 0; i < 8; i++)
             crc = crc & 1 ? (crc >> 1) ^ CRCPOLY : crc >> 1;
     }
     return ~crc;
