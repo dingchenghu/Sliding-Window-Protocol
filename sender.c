@@ -49,7 +49,7 @@ void rightShiftSWPWindow(Sender * sender, int n){
     assert(n <= SWP_WINDOW_SIZE);
 
     sender->LastAckReceived += n;
-    sender->SwpWindow >>= n;
+    sender->SwpWindow <<= n;
 
     //left shift framesInWindow, drop the old backups
     memmove(sender->framesInWindow, sender->framesInWindow + n,
@@ -57,19 +57,22 @@ void rightShiftSWPWindow(Sender * sender, int n){
 }
 
 void retransimit(Sender * sender, LLnode ** outgoing_frames_head_ptr){
-    for(int i = 0; i < SWP_WINDOW_SIZE; i++){
+    for(int i = 0; i < SWP_WINDOW_SIZE; i++)
+    {
         int n = SWP_WINDOW_SIZE - 1 - i;
 
         if(SwpSeqNo_minus(sender->LastFrameSent, sender-> LastAckReceived) <= i)
             break;
 
+        //fprintf(stderr, "Retransimiting...\n");
+
         //retransimit if ack not received
         if((sender->SwpWindow & (1 << n)) == 0)
         {
             Frame * outgoing_frame = (Frame *) malloc (sizeof(Frame));
-            memcpy(outgoing_frame, sender->framesInWindow + i, sizeof(Frame));
+            memcpy(outgoing_frame, (sender->framesInWindow) + i, sizeof(Frame));
 
-            //fprintf(stderr, "\t%d ", i);
+            //fprintf(stderr, " SWP = %X, \t%d ", sender->SwpWindow, i);
             //printFrame(outgoing_frame);
             //fprintf(stderr, "\n");
             //frameAddCRC32(outgoing_frame);
@@ -80,6 +83,7 @@ void retransimit(Sender * sender, LLnode ** outgoing_frames_head_ptr){
 
             free(outgoing_frame);
         }
+        //fprintf(stderr, "\n");
     }
 }
 
@@ -127,18 +131,18 @@ void handle_incoming_acks(Sender * sender,
             continue;
         }
 
-        fprintf(stderr, "Sender %d receiving Ack: %d\n\tCurrent: LFS = %d, LAR = %d, ACK - LAR = %d\n\n",
+        fprintf(stderr, "Sender %d receiving Ack: %d\n\tCurrent: LFS = %d, LAR = %d, ACK - LAR = %d\n",
             sender->send_id, AckNo,
             sender->LastFrameSent, sender->LastAckReceived,
             SwpSeqNo_minus(AckNo, sender->LastAckReceived));
 
         //update SWP status
-        sender->SwpWindow ^= (1 << (SWP_WINDOW_SIZE - SwpSeqNo_minus(AckNo, sender->LastAckReceived)));
+        sender->SwpWindow |= (1 << (SWP_WINDOW_SIZE - SwpSeqNo_minus(AckNo, sender->LastAckReceived)));
 
         if(SwpSeqNo_minus(AckNo, sender->LastAckReceived) == 1)
         {
 
-            //sender->SwpWindow ^= 1 << (SWP_WINDOW_SIZE - 1);
+            //sender->SwpWindow |= 1 << (SWP_WINDOW_SIZE - 1);
 
             int n = 1;
             for(int i = SWP_WINDOW_SIZE - 2; i >= 0; i--){
@@ -148,15 +152,32 @@ void handle_incoming_acks(Sender * sender,
                     break;
             }
             //right shift the SWP window
-            //fprintf(stderr, "\tSWP windows flag = %X\n", sender->SwpWindow);
+            fprintf(stderr, "\tSWP windows flag = %X\n", sender->SwpWindow);
             rightShiftSWPWindow(sender, n);
-            //fprintf(stderr, "RightShift SWP window by %d, new LAR = %d\n\n", n, sender->LastAckReceived);
+            fprintf(stderr, "RightShift SWP window by %d, new LAR = %d\n\n", n, sender->LastAckReceived);
+            fprintf(stderr, "\n");
+
         }
         // Negative ack
         else if(SwpSeqNo_minus(AckNo, sender->LastAckReceived) == 0
             || SwpSeqNo_minus(AckNo, sender->LastAckReceived) > 128)
         {
             retransimit(sender, outgoing_frames_head_ptr);
+        }
+        else if((sender->SwpWindow & (1 << 7)) == (1 << 7))
+        {
+            int n = 1;
+            for(int i = SWP_WINDOW_SIZE - 2; i >= 0; i--){
+                if((sender->SwpWindow & (1 << i)) == i << i)
+                    n += 1;
+                else
+                    break;
+            }
+            //right shift the SWP window
+            fprintf(stderr, "\tSWP windows flag = %X\n", sender->SwpWindow);
+            rightShiftSWPWindow(sender, n);
+            fprintf(stderr, "RightShift SWP window by %d, new LAR = %d\n\n", n, sender->LastAckReceived);
+            fprintf(stderr, "\n");
         }
 
         fprintf(stderr, "\tSWP windows flag = %X\n\n", sender->SwpWindow);
@@ -181,6 +202,7 @@ void handle_input_cmds(Sender * sender,
 
     //Recheck the command queue length to see if stdin_thread dumped a command on us
     input_cmd_length = ll_get_length(sender->input_cmdlist_head);
+
     while (input_cmd_length > 0)
     {
         if((SwpSeqNo_minus(sender->LastFrameSent, sender-> LastAckReceived) >= SWP_WINDOW_SIZE))
@@ -224,19 +246,19 @@ void handle_input_cmds(Sender * sender,
             frameAddCRC32(outgoing_frame);
             assert(frameIsCorrupted(outgoing_frame) == 0);
 
-            /*
+
             fprintf(stderr, "Sender %d sending a frame: \n\t",
                 sender->send_id);
             printFrame(outgoing_frame);
 
             fprintf(stderr, "\tFrame backuped, LFS = %d, LAR = %d\n\n",
                 sender->LastFrameSent, sender->LastAckReceived);
-            */
 
             //assert(sender->LastAckReceived != sender->LastFrameSent);
 
             //backup frame
             assert(SwpSeqNo_minus(sender->LastFrameSent, sender-> LastAckReceived) <= SWP_WINDOW_SIZE);
+
             if(sender->LastAckReceived != sender->LastFrameSent){
                 memcpy(sender->framesInWindow + SwpSeqNo_minus(sender->LastFrameSent, sender->LastAckReceived) - 1,
                     outgoing_frame, sizeof(Frame));

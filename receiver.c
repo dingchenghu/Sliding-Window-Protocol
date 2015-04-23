@@ -68,10 +68,12 @@ void handle_incoming_msgs(Receiver * receiver,
             }
         */
 
+        /*
         fprintf(stderr, "Receiver %d receiving a frame: \n\t", receiver->recv_id);
         printFrame(inframe);
         fprintf(stderr, "\tSending ACK : %d\n", inframe->swpSeqNo);
         fprintf(stderr, "\n");
+        */
 
         //Free raw_char_buf
         free(raw_char_buf);
@@ -107,6 +109,8 @@ void handle_incoming_msgs(Receiver * receiver,
                     receiver->LastFrameReceived += 1;
                     receiver->SwpWindow <<= 1;
                 }
+                memmove(receiver->framesInWindow, receiver->framesInWindow + 1,
+                    sizeof(Frame) * (SWP_WINDOW_SIZE - 2));
                 receiver->SwpWindow <<= 1;
             }
             else
@@ -126,10 +130,11 @@ void handle_incoming_msgs(Receiver * receiver,
             memcpy(receiver->framesInWindow + n - 1, inframe, sizeof(Frame));
 
             //update SWP window status
-            receiver->SwpWindow ^= (1 << (SWP_WINDOW_SIZE - n));
+            receiver->SwpWindow |= (1 << (SWP_WINDOW_SIZE - n));
 
             assert((receiver->SwpWindow & 1) == 0);
-            fprintf(stderr, "\tSwpSeqNo = %d, new SwpWindow = %X\n\n", inframe->swpSeqNo, receiver->SwpWindow);
+            //fprintf(stderr, "\tSwpSeqNo = %d, new SwpWindow = %X (LFR = %d)\n\n",
+            //    inframe->swpSeqNo, receiver->SwpWindow, receiver->LastFrameReceived);
         }
         else
         {
