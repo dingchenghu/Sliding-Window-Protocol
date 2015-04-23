@@ -32,7 +32,7 @@ struct timeval * sender_get_next_expiring_timeval(Sender * sender)
     struct timeval *t = (struct timeval*) malloc(sizeof(struct timeval));
 
     t->tv_sec = curr_timeval.tv_sec;
-    t->tv_usec = curr_timeval.tv_usec + 100000;
+    t->tv_usec = curr_timeval.tv_usec + 50000;
 
     if (t->tv_usec >= 1000000)
     {

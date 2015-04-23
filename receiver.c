@@ -44,16 +44,31 @@ void handle_incoming_msgs(Receiver * receiver,
 
         Frame * inframe = convert_char_to_frame(raw_char_buf);
 
-        //not for this receiver / corrupted
-        if(inframe->recv_id != receiver->recv_id || frameIsCorrupted(inframe)){
+        //not for this receiver / corrupted / SeqNo > Acceptable No
+        if(inframe->recv_id != receiver->recv_id || frameIsCorrupted(inframe)
+            || (SwpSeqNo_minus(inframe->swpSeqNo, receiver->LastFrameReceived) > SWP_WINDOW_SIZE
+            && (SwpSeqNo_minus(inframe->swpSeqNo, receiver->LastFrameReceived) < 128))){
             free(raw_char_buf);
             free(inframe);
             free(ll_inmsg_node);
             continue;
         }
 
-        fprintf(stderr, "Receiver %d receiving a frame: \n\t",
-            receiver->recv_id);
+        /*
+        // not acceptalbe
+        if(!((SwpSeqNo_minus(inframe->swpSeqNo, receiver->LastFrameReceived) < SWP_WINDOW_SIZE
+            && SwpSeqNo_minus(inframe->swpSeqNo, receiver->LastFrameReceived) > 0)
+            || (SwpSeqNo_minus(inframe->swpSeqNo, receiver->LastFrameReceived) == 1)))
+            {
+                //assert(0);
+                free(raw_char_buf);
+                free(inframe);
+                free(ll_inmsg_node);
+                continue;
+            }
+        */
+
+        fprintf(stderr, "Receiver %d receiving a frame: \n\t", receiver->recv_id);
         printFrame(inframe);
         fprintf(stderr, "\tSending ACK : %d\n", inframe->swpSeqNo);
         fprintf(stderr, "\n");
@@ -61,55 +76,86 @@ void handle_incoming_msgs(Receiver * receiver,
         //Free raw_char_buf
         free(raw_char_buf);
 
+        uint8_t sendAck = 0;
+
         //continuous seq no
         if(SwpSeqNo_minus(inframe->swpSeqNo, receiver->LastFrameReceived) == 0)
         {
+            sendAck = 1;
             while(0); // do nothing
         }
         else if(SwpSeqNo_minus(inframe->swpSeqNo, receiver->LastFrameReceived) == 1)
         {
+            sendAck = 1;
             receiver->LastFrameReceived += 1;
             printf("<RECV_%d>:[%s]\n", receiver->recv_id, inframe->data);
 
-            receiver->SwpWindow <<= 1;
-            while((receiver->SwpWindow & (1 << 7)) == 128){
-                //fprintf(stderr, "in while @ receiver\n");
-                printf("<RECV_%d>:[%s]\n", receiver->recv_id, receiver->framesInWindow->data);
 
-                //left shift framesInWindow
-                memmove(receiver->framesInWindow, receiver->framesInWindow + 1, sizeof(Frame));
+            if((receiver->SwpWindow & (1 << 7)) == (1 << 7))
+            {
+                while((receiver->SwpWindow & (1 << 7)) == (1 << 7))
+                {
+                    //fprintf(stderr, "in while @ receiver\n");
+                    printf("<RECV_%d>:[%s]\n", receiver->recv_id, receiver->framesInWindow->data);
 
-                receiver->LastFrameReceived += 1;
+                    assert(receiver->framesInWindow->swpSeqNo != inframe->swpSeqNo);
+
+                    //left shift framesInWindow
+                    memmove(receiver->framesInWindow, receiver->framesInWindow + 1,
+                        sizeof(Frame) * (SWP_WINDOW_SIZE - 2));
+
+                    receiver->LastFrameReceived += 1;
+                    receiver->SwpWindow <<= 1;
+                }
                 receiver->SwpWindow <<= 1;
             }
+            else
+            {
+                memmove(receiver->framesInWindow, receiver->framesInWindow + 1,
+                    sizeof(Frame) * (SWP_WINDOW_SIZE - 2));
+                receiver->SwpWindow <<= 1;
+            }
+
         }
-        else if(SwpSeqNo_minus(inframe->swpSeqNo, receiver->LastFrameReceived) < SWP_WINDOW_SIZE)
+        else if(SwpSeqNo_minus(inframe->swpSeqNo, receiver->LastFrameReceived) <= SWP_WINDOW_SIZE
+            && SwpSeqNo_minus(inframe->swpSeqNo, receiver->LastFrameReceived) > 0)
         {
+            sendAck = 1;
             SwpSeqNo n = SwpSeqNo_minus(inframe->swpSeqNo, receiver->LastFrameReceived) - 1;
             assert(n >= 1 && n < 8);
             memcpy(receiver->framesInWindow + n - 1, inframe, sizeof(Frame));
 
             //update SWP window status
-            receiver->SwpWindow ^= (1 << (SWP_WINDOW_SIZE - 1 - n));
+            receiver->SwpWindow ^= (1 << (SWP_WINDOW_SIZE - n));
 
+            assert((receiver->SwpWindow & 1) == 0);
             fprintf(stderr, "\tSwpSeqNo = %d, new SwpWindow = %X\n\n", inframe->swpSeqNo, receiver->SwpWindow);
         }
         else
-            while(0); // do nothing
+        {
+            sendAck = 1;
+        }
 
         //send ack
-        Frame *outframe = (Frame*) malloc(sizeof(Frame));
-        outframe->swpSeqNo = inframe->swpSeqNo;
-        outframe->send_id = inframe->recv_id;
-        outframe->recv_id = inframe->send_id;
-        frameAddCRC32(outframe);
+        Frame *outframe = NULL;
+        if(sendAck)
+        {
+            outframe = (Frame*) malloc(sizeof(Frame));
+            outframe->swpSeqNo = inframe->swpSeqNo;
+            outframe->send_id = inframe->recv_id;
+            outframe->recv_id = inframe->send_id;
+            frameAddCRC32(outframe);
 
-        char * outgoing_charbuf = convert_frame_to_char(outframe);
-        ll_append_node(outgoing_frames_head_ptr, outgoing_charbuf);
+            char * outgoing_charbuf = convert_frame_to_char(outframe);
+            ll_append_node(outgoing_frames_head_ptr, outgoing_charbuf);
+        }
+
 
         free(inframe);
-        free(outframe);
         free(ll_inmsg_node);
+
+        if(sendAck)
+            free(outframe);
     }
 }
 
