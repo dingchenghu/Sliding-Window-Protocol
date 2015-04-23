@@ -128,6 +128,9 @@ struct Sender_t
     uint8_t SwpWindow;
 
     Frame framesInWindow[SWP_WINDOW_SIZE];
+
+    SwpSeqNo lastAckNo;
+    int lastAckNoduplicateTimes;
 };
 
 enum SendFrame_DstType
