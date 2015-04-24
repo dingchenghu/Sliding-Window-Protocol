@@ -255,7 +255,7 @@ void handle_input_cmds(Sender * sender,
         //                    Does the receiver have enough space in in it's input queue to handle this message?
         //                    Were the previous messages sent to this receiver ACTUALLY delivered to the receiver?
         int msg_length = strlen(outgoing_cmd->message);
-        if (msg_length > MAX_FRAME_SIZE)
+        if (msg_length > FRAME_PAYLOAD_SIZE)
         {
             //Do something about messages that exceed the frame size
             printf("<SEND_%d>: sending messages of length greater than %d is not implemented\n", sender->send_id, MAX_FRAME_SIZE);

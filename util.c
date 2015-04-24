@@ -57,6 +57,12 @@ void ll_append_node(LLnode ** head_ptr,
     }
 }
 
+void ll_append_node_toFirst(LLnode ** head_ptr,
+                    void * value)
+{
+    ll_append_node(head_ptr, value);
+    head_ptr = &((*head_ptr)->prev);
+}
 
 LLnode * ll_pop_node(LLnode ** head_ptr)
 {
@@ -165,7 +171,7 @@ char * convert_frame_to_char(Frame * frame)
     memcpy(curPos, &(frame->parity), sizeof(Parity));
     curPos += sizeof(Parity);
 
-    assert(curPos - char_buffer == 60);
+    assert(curPos - char_buffer == MAX_FRAME_SIZE);
 
     return char_buffer;
 }
@@ -196,7 +202,7 @@ Frame * convert_char_to_frame(char * char_buf)
     memcpy(&(frame->parity), curPos, sizeof(Parity));
     curPos += sizeof(Parity);
 
-    assert(curPos - char_buf == 60);
+    assert(curPos - char_buf == MAX_FRAME_SIZE);
 
     return frame;
 }

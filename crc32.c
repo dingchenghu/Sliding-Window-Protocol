@@ -32,17 +32,15 @@ typedef struct Frame_t Frame;
 
 void frameAddCRC32(Frame *frame){
 	char* char_buf = convert_frame_to_char(frame);
-	//frame->parity = crc32(char_buf, sizeof(SwpSeqNo) + sizeof(uint16_t) * 2
-	//	+ FRAME_FLAG_SIZE + FRAME_PAYLOAD_SIZE);
-	frame->parity = crc32(char_buf, 56);
+	frame->parity = crc32(char_buf, sizeof(SwpSeqNo) + sizeof(uint16_t) * 2
+		+ FRAME_FLAG_SIZE + FRAME_PAYLOAD_SIZE);
 	free(char_buf);
 }
 
 uint8_t frameIsCorrupted(Frame *frame){
 	char* char_buf = convert_frame_to_char(frame);
-	//if(frame->parity == crc32(char_buf, sizeof(SwpSeqNo) + sizeof(uint16_t) +
-	//	sizeof(uint16_t) + FRAME_FLAG_SIZE + FRAME_PAYLOAD_SIZE))
-	if(frame->parity == crc32(char_buf, 56))
+	if(frame->parity == crc32(char_buf, sizeof(SwpSeqNo) + sizeof(uint16_t) +
+		sizeof(uint16_t) + FRAME_FLAG_SIZE + FRAME_PAYLOAD_SIZE))
 		return 0;
 	else
 		return 1;
