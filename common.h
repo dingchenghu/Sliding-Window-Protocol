@@ -106,6 +106,8 @@ struct Receiver_t
     uint8_t SwpWindow;
 
     Frame framesInWindow[SWP_WINDOW_SIZE - 1];
+
+    uint8_t preMsgHasSubsequent;
 };
 
 struct Sender_t

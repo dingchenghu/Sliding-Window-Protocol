@@ -17,6 +17,37 @@ void init_receiver(Receiver * receiver, int id)
 
     memset(receiver->framesInWindow, (unsigned char) 0,
         sizeof(Frame) * SWP_WINDOW_SIZE - 1);
+
+    receiver->preMsgHasSubsequent = 0;
+}
+
+void print_msg(Receiver *receiver, Frame *inframe)
+{
+    //has subsequent
+    if(receiver->preMsgHasSubsequent)
+    {
+        // in long msg
+        if((inframe->flag[0] & (1 << 7)) == (1 << 7))
+        {
+            printf("%s", inframe->data);
+        }
+        // long msg end
+        else
+        {
+            printf("%s]\n",  inframe->data);
+            receiver->preMsgHasSubsequent = 0;
+        }
+
+    }
+    // long msg begin
+    else if((inframe->flag[0] & (1 << 7)) == (1 << 7))
+    {
+        printf("<RECV_%d>:[%s", receiver->recv_id, inframe->data);
+        receiver->preMsgHasSubsequent = 1;
+    }
+    //short msg
+    else
+        printf("<RECV_%d>:[%s]\n", receiver->recv_id, inframe->data);
 }
 
 
@@ -83,19 +114,20 @@ void handle_incoming_msgs(Receiver * receiver,
 
         uint8_t sendAck = 0;
 
-        //continuous seq no
         if(SwpSeqNo_minus(inframe->swpSeqNo, receiver->LastFrameReceived) == 0)
         {
             sendAck = 1;
             while(0); // do nothing
         }
+        //continuous seq no
         else if(SwpSeqNo_minus(inframe->swpSeqNo, receiver->LastFrameReceived) == 1)
         {
             sendAck = 1;
             receiver->LastFrameReceived += 1;
 
             assert(frameIsCorrupted(inframe) == 0);
-            printf("<RECV_%d>:[%s]\n", receiver->recv_id, inframe->data);
+
+            print_msg(receiver, inframe);
 
             if((receiver->SwpWindow & (1 << 7)) == (1 << 7))
             {
@@ -103,8 +135,8 @@ void handle_incoming_msgs(Receiver * receiver,
                 {
                     //fprintf(stderr, "in while @ receiver\n");
                     assert(frameIsCorrupted(receiver->framesInWindow) == 0);
-                    printf("<RECV_%d>:[%s]\n", receiver->recv_id, receiver->framesInWindow->data);
-
+                    //printf("<RECV_%d>:[%s]\n", receiver->recv_id, receiver->framesInWindow->data);
+                    print_msg(receiver, receiver->framesInWindow);
                     assert(receiver->framesInWindow->swpSeqNo != inframe->swpSeqNo);
 
                     //left shift framesInWindow
@@ -144,6 +176,7 @@ void handle_incoming_msgs(Receiver * receiver,
         else
         {
             sendAck = 1;
+            while(0); // do nothing
         }
 
         //send ack

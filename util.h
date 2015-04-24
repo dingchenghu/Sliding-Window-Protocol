@@ -17,6 +17,7 @@
 //Linked list functions
 int ll_get_length(LLnode *);
 void ll_append_node(LLnode **, void *);
+void ll_append_node_toFirst(LLnode **, void *);
 LLnode * ll_pop_node(LLnode **);
 void ll_destroy_node(LLnode *);
 

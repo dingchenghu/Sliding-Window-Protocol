@@ -254,55 +254,72 @@ void handle_input_cmds(Sender * sender,
         //      Ask yourself: Is this message actually going to the right receiver (recall that default behavior of send is to broadcast to all receivers)?
         //                    Does the receiver have enough space in in it's input queue to handle this message?
         //                    Were the previous messages sent to this receiver ACTUALLY delivered to the receiver?
+
+        uint8_t hasSubsequent = 0;
+
         int msg_length = strlen(outgoing_cmd->message);
         if (msg_length > FRAME_PAYLOAD_SIZE)
+            hasSubsequent = 1;
+
+        Frame * outgoing_frame = (Frame *) malloc (sizeof(Frame));
+        memset(outgoing_frame, 0, sizeof(Frame));
+
+        outgoing_frame->swpSeqNo = ++(sender->LastFrameSent);
+        outgoing_frame->send_id = outgoing_cmd->src_id;
+        outgoing_frame->recv_id = outgoing_cmd->dst_id;
+
+        if(!hasSubsequent)
         {
-            //Do something about messages that exceed the frame size
-            printf("<SEND_%d>: sending messages of length greater than %d is not implemented\n", sender->send_id, MAX_FRAME_SIZE);
+            memcpy(outgoing_frame->data, outgoing_cmd->message, strlen(outgoing_cmd->message));
+
+            free(outgoing_cmd->message);
+            free(outgoing_cmd);
         }
         else
         {
+            memcpy(outgoing_frame->data, outgoing_cmd->message, FRAME_PAYLOAD_SIZE);
 
-            Frame * outgoing_frame = (Frame *) malloc (sizeof(Frame));
-            memset(outgoing_frame, 0, sizeof(Frame));
+            // mark the frame have subsequent
+            outgoing_frame->flag[0] ^= (1 << 7);
 
-            outgoing_frame->swpSeqNo = ++(sender->LastFrameSent);
-            outgoing_frame->send_id = outgoing_cmd->src_id;
-            outgoing_frame->recv_id = outgoing_cmd->dst_id;
-            memcpy(outgoing_frame->data, outgoing_cmd->message, strlen(outgoing_cmd->message));
-            frameAddCRC32(outgoing_frame);
-            assert(frameIsCorrupted(outgoing_frame) == 0);
-
-            /*
-            fprintf(stderr, "Sender %d sending a frame: \n\t",
-                sender->send_id);
-            printFrame(outgoing_frame);
-
-            fprintf(stderr, "\tFrame backuped, LFS = %d, LAR = %d\n\n",
-                sender->LastFrameSent, sender->LastAckReceived);
-            */
-
-            //assert(sender->LastAckReceived != sender->LastFrameSent);
-
-            //backup frame
-            assert(SwpSeqNo_minus(sender->LastFrameSent, sender-> LastAckReceived) <= SWP_WINDOW_SIZE);
-
-            if(sender->LastAckReceived != sender->LastFrameSent){
-                memcpy(sender->framesInWindow + SwpSeqNo_minus(sender->LastFrameSent, sender->LastAckReceived) - 1,
-                    outgoing_frame, sizeof(Frame));
-            }
-
-            //At this point, we don't need the outgoing_cmd
-            free(outgoing_cmd->message);
-            free(outgoing_cmd);
-
-            //Convert the message to the outgoing_charbuf
-            char * outgoing_charbuf = convert_frame_to_char(outgoing_frame);
-
-            ll_append_node(outgoing_frames_head_ptr, outgoing_charbuf);
-
-            free(outgoing_frame);
+            //append the remaining msg to the first of ll
+            memmove(outgoing_cmd->message, outgoing_cmd->message + FRAME_PAYLOAD_SIZE,
+                (msg_length - FRAME_PAYLOAD_SIZE) * sizeof(char));
+            memset(outgoing_cmd->message + msg_length - FRAME_PAYLOAD_SIZE,
+                '\0', FRAME_PAYLOAD_SIZE * sizeof(char));
+            ll_append_node_toFirst(&(sender->input_cmdlist_head), outgoing_cmd);
         }
+
+        frameAddCRC32(outgoing_frame);
+        assert(frameIsCorrupted(outgoing_frame) == 0);
+
+        /*
+        fprintf(stderr, "Sender %d sending a frame: \n\t",
+            sender->send_id);
+        printFrame(outgoing_frame);
+
+        fprintf(stderr, "\tFrame backuped, LFS = %d, LAR = %d\n\n",
+            sender->LastFrameSent, sender->LastAckReceived);
+        */
+
+        //assert(sender->LastAckReceived != sender->LastFrameSent);
+
+        //backup frame
+        assert(SwpSeqNo_minus(sender->LastFrameSent, sender-> LastAckReceived) <= SWP_WINDOW_SIZE);
+
+        if(sender->LastAckReceived != sender->LastFrameSent)
+        {
+            memcpy(sender->framesInWindow + SwpSeqNo_minus(sender->LastFrameSent, sender->LastAckReceived) - 1,
+                outgoing_frame, sizeof(Frame));
+        }
+
+        //Convert the message to the outgoing_charbuf
+        char * outgoing_charbuf = convert_frame_to_char(outgoing_frame);
+
+        ll_append_node(outgoing_frames_head_ptr, outgoing_charbuf);
+
+        free(outgoing_frame);
+
     }
 }
 
