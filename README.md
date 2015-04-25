@@ -2,6 +2,5 @@
 
 TODO:
 
-support long message;
-
-support multiple senders / receivers;
+Limit number of sending msgs (8)
+Add support of long msgs for multiple senders and receivers

@@ -66,7 +66,6 @@ void switchReceiver(Sender *sender, uint16_t cur_rec_id, uint16_t new_recv_id)
     //if has saved state
     if(sender->hasSavedSwpState[new_recv_id] == 1)
     {
-        assert(0);
         sender->LastAckReceived = sender->SavedSwpStates[new_recv_id]->LastAckReceived;
         sender->LastFrameSent = sender->SavedSwpStates[new_recv_id]->LastFrameSent;
         sender->SwpWindow = sender->SavedSwpStates[new_recv_id]->SwpWindow;
@@ -124,6 +123,7 @@ void rightShiftSWPWindow(Sender * sender, int n){
         sizeof(Frame) * (SWP_WINDOW_SIZE - n));
 }
 
+// retransimit for current reciever
 void retransimit(Sender * sender, LLnode ** outgoing_frames_head_ptr)
 {
 
@@ -131,7 +131,7 @@ void retransimit(Sender * sender, LLnode ** outgoing_frames_head_ptr)
     {
         int n = SWP_WINDOW_SIZE - 1 - i;
 
-        if(SwpSeqNo_minus(sender->LastFrameSent, sender-> LastAckReceived) <= i)
+        if(SwpSeqNo_minus(sender->LastFrameSent, sender->LastAckReceived) <= i)
             break;
 
         //fprintf(stderr, "Retransimiting...\n");
@@ -158,6 +158,42 @@ void retransimit(Sender * sender, LLnode ** outgoing_frames_head_ptr)
     }
 }
 
+// retransimit for every recievers except current one
+void retransimitOthers(Sender * sender, LLnode ** outgoing_frames_head_ptr)
+{
+    for(int r = 0; r < MAX_COM_ID; r++)
+    {
+        if(sender->hasSavedSwpState[r] == 0)
+            continue;
+
+        //skip current receiver
+        if(r == sender->cur_recv_id)
+            continue;
+
+        for(int i = 0; i < SWP_WINDOW_SIZE; i++)
+        {
+            int n = SWP_WINDOW_SIZE - 1 - i;
+
+            if(SwpSeqNo_minus(sender->SavedSwpStates[r]->LastFrameSent,
+                sender->SavedSwpStates[r]->LastAckReceived) <= i)
+                break;
+
+            if((sender->SavedSwpStates[r]->SwpWindow & (1 << n)) == 0)
+            {
+                Frame * outgoing_frame = (Frame *) malloc (sizeof(Frame));
+                memcpy(outgoing_frame, sender->SavedSwpStates[r]->framesInWindow + i, sizeof(Frame));
+
+                assert(frameIsCorrupted(outgoing_frame) == 0);
+
+                char * outgoing_charbuf = convert_frame_to_char(outgoing_frame);
+                ll_append_node(outgoing_frames_head_ptr, outgoing_charbuf);
+
+                free(outgoing_frame);
+
+            }
+        }
+    }
+}
 
 void handle_incoming_acks(Sender * sender,
                           LLnode ** outgoing_frames_head_ptr)
@@ -320,7 +356,8 @@ void handle_input_cmds(Sender * sender,
 
     while (input_cmd_length > 0)
     {
-        if((SwpSeqNo_minus(sender->LastFrameSent, sender-> LastAckReceived) >= SWP_WINDOW_SIZE))
+        //pause sending, waiting for acks
+        if((SwpSeqNo_minus(sender->LastFrameSent, sender->LastAckReceived) >= SWP_WINDOW_SIZE))
         {
             break;
         }
@@ -343,8 +380,16 @@ void handle_input_cmds(Sender * sender,
         if(outgoing_cmd->dst_id != sender->cur_recv_id)
         {
             fprintf(stderr, "Sender #%d, curSender = #%d, newSender = #%d, switching sender...\n\n",
-                sender->send_id, sender->cur_recv_id, outgoing_cmd->send_id);
+                sender->send_id, sender->cur_recv_id, outgoing_cmd->dst_id);
             switchReceiver(sender, sender->cur_recv_id, outgoing_cmd->dst_id);
+        }
+
+        //pause sending, waiting for acks
+        if((SwpSeqNo_minus(sender->LastFrameSent, sender->LastAckReceived) >= SWP_WINDOW_SIZE))
+        {
+            //put the cmd back
+            ll_append_node_toFirst(&(sender->input_cmdlist_head), outgoing_cmd);
+            break;
         }
 
         //DUMMY CODE: Add the raw char buf to the outgoing_frames list
@@ -403,7 +448,7 @@ void handle_input_cmds(Sender * sender,
         //assert(sender->LastAckReceived != sender->LastFrameSent);
 
         //backup frame
-        assert(SwpSeqNo_minus(sender->LastFrameSent, sender-> LastAckReceived) <= SWP_WINDOW_SIZE);
+        assert(SwpSeqNo_minus(sender->LastFrameSent, sender->LastAckReceived) <= SWP_WINDOW_SIZE);
 
         if(sender->LastAckReceived != sender->LastFrameSent)
         {
@@ -438,13 +483,14 @@ void handle_timedout_frames(Sender * sender,
 
     if(sender->LastFrameSent == sender-> LastAckReceived){
         //fprintf(stderr, "\tLFS == LAR, do nothing\n");
-        while(0); //do nothing
+        retransimitOthers(sender, outgoing_frames_head_ptr);
     }
     else
     {
         //fprintf(stderr, "\tLFS != LAR, retransimitting...\n\tSWP windows flag = %X\n\n",
         //    sender->SwpWindow);
         retransimit(sender, outgoing_frames_head_ptr);
+        retransimitOthers(sender, outgoing_frames_head_ptr);
     }
 }
 
