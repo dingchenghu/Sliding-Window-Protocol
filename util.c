@@ -61,7 +61,7 @@ void ll_append_node_toFirst(LLnode ** head_ptr,
                     void * value)
 {
     ll_append_node(head_ptr, value);
-    head_ptr = &((*head_ptr)->prev);
+    *head_ptr = ((*head_ptr)->prev);
 }
 
 LLnode * ll_pop_node(LLnode ** head_ptr)

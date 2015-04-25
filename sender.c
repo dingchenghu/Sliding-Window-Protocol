@@ -357,6 +357,7 @@ void handle_input_cmds(Sender * sender,
     while (input_cmd_length > 0)
     {
         //pause sending, waiting for acks
+
         if((SwpSeqNo_minus(sender->LastFrameSent, sender->LastAckReceived) >= SWP_WINDOW_SIZE))
         {
             break;
@@ -436,14 +437,13 @@ void handle_input_cmds(Sender * sender,
         frameAddCRC32(outgoing_frame);
         assert(frameIsCorrupted(outgoing_frame) == 0);
 
-        /*
+
         fprintf(stderr, "Sender %d sending a frame: \n\t",
             sender->send_id);
         printFrame(outgoing_frame);
 
         fprintf(stderr, "\tFrame backuped, LFS = %d, LAR = %d\n\n",
             sender->LastFrameSent, sender->LastAckReceived);
-        */
 
         //assert(sender->LastAckReceived != sender->LastFrameSent);
 

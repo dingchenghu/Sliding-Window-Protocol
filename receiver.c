@@ -52,7 +52,7 @@ void switchSender(Receiver *receiver, uint16_t cur_send_id, uint16_t new_send_id
     receiver->SavedSwpStates[cur_send_id]->SwpWindow = receiver->SwpWindow;
     memcpy(receiver->SavedSwpStates[cur_send_id]->framesInWindow, receiver->framesInWindow,
         sizeof(Frame) * (SWP_WINDOW_SIZE - 1));
-    receiver->SavedSwpStates[cur_send_id]->preMsgHasSubsequent = receiver->preMsgHasSubsequent;
+    //receiver->SavedSwpStates[cur_send_id]->preMsgHasSubsequent = receiver->preMsgHasSubsequent;
 
     receiver->hasSavedSwpState[cur_send_id] = 1;
 
@@ -63,7 +63,7 @@ void switchSender(Receiver *receiver, uint16_t cur_send_id, uint16_t new_send_id
         receiver->SwpWindow = receiver->SavedSwpStates[new_send_id]->SwpWindow;
         memcpy(receiver->framesInWindow, receiver->SavedSwpStates[new_send_id]->framesInWindow,
             sizeof(Frame) * (SWP_WINDOW_SIZE - 1));
-        receiver->preMsgHasSubsequent = receiver->SavedSwpStates[new_send_id]->preMsgHasSubsequent;
+        //receiver->preMsgHasSubsequent = receiver->SavedSwpStates[new_send_id]->preMsgHasSubsequent;
     }
 
     //new init state
@@ -72,7 +72,7 @@ void switchSender(Receiver *receiver, uint16_t cur_send_id, uint16_t new_send_id
         receiver->LastFrameReceived = 0 - 1;
         receiver->SwpWindow = 0;
         memset(receiver->framesInWindow, (unsigned char) 0, sizeof(Frame) * (SWP_WINDOW_SIZE - 1));
-        receiver->preMsgHasSubsequent = 0;
+        //receiver->preMsgHasSubsequent = 0;
     }
 
     receiver->cur_send_id = new_send_id;
@@ -154,27 +154,13 @@ void handle_incoming_msgs(Receiver * receiver,
 
         //not for this receiver / corrupted / SeqNo > Acceptable No
         if((SwpSeqNo_minus(inframe->swpSeqNo, receiver->LastFrameReceived) > SWP_WINDOW_SIZE
-            && (SwpSeqNo_minus(inframe->swpSeqNo, receiver->LastFrameReceived) < 128))){
+            && (SwpSeqNo_minus(inframe->swpSeqNo, receiver->LastFrameReceived) < 128)))
+        {
             free(raw_char_buf);
             free(inframe);
             free(ll_inmsg_node);
             continue;
         }
-
-        /*
-        // not acceptalbe
-        if(!((SwpSeqNo_minus(inframe->swpSeqNo, receiver->LastFrameReceived) < SWP_WINDOW_SIZE
-            && SwpSeqNo_minus(inframe->swpSeqNo, receiver->LastFrameReceived) > 0)
-            || (SwpSeqNo_minus(inframe->swpSeqNo, receiver->LastFrameReceived) == 1)))
-            {
-                //assert(0);
-                free(raw_char_buf);
-                free(inframe);
-                free(ll_inmsg_node);
-                continue;
-            }
-        */
-
 
         /*
         fprintf(stderr, "Receiver %d receiving a frame: \n\t", receiver->recv_id);
