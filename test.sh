@@ -77,8 +77,8 @@ echo -n "Test case 5: Sending 10 packets (with corrupt probability of 50% and dr
 
 check_output 5
 
-echo -n "Test case 6: Sending 10 packets (with corrupt probability of 90% and drop probability of 90%) and expecting receiver to print them out in order: "
-(sleep 0.5; for i in `seq 1 20`; do echo "msg 0 0 Packet: $i"; sleep 0.1; done; sleep 15; echo "exit") | ./tritontalk -c 0.9 -d 0.9 -r 1 -s 1 > .output.6 2> .debug_output.6
+echo -n "Test case 6: Sending 20 packets (with corrupt probability of 90% and drop probability of 90%) and expecting receiver to print them out in order: "
+(sleep 0.5; for i in `seq 1 20`; do echo "msg 0 0 Packet: $i"; sleep 0.1; done; sleep 20; echo "exit") | ./tritontalk -c 0.9 -d 0.9 -r 1 -s 1 > .output.6 2> .debug_output.6
 
 (for i in `seq 1 20`; do echo "<RECV_0>:[Packet: $i]"; done) > .expected_output.6
 
@@ -92,7 +92,7 @@ echo -n "Test case 7: Long msgs test : Sending 10 long packets (with corrupt pro
 check_output 7
 
 echo -n "Test case 8: SeqNo overflow test : Sending 10 packets (with corrupt probability of 30% and drop probability of 30%) and expecting receiver to print them out in order: "
-(sleep 0.5; for i in `seq 1 500`; do echo "msg 0 0 Packet: $i"; sleep 0.1; done; sleep 5; echo "exit") | ./tritontalk -c 0.3 -d 0.3 -r 1 -s 1 > .output.8 2> .debug_output.8
+(sleep 0.5; for i in `seq 1 500`; do echo "msg 0 0 Packet: $i"; sleep 0.1; done; sleep 10; echo "exit") | ./tritontalk -c 0.3 -d 0.3 -r 1 -s 1 > .output.8 2> .debug_output.8
 
 (for i in `seq 1 500`; do echo "<RECV_0>:[Packet: $i]"; done) > .expected_output.8
 

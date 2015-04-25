@@ -84,6 +84,10 @@ struct Frame_t
 };
 typedef struct Frame_t Frame;
 
+#define MAX_COM_ID 65536
+
+typedef struct SenderSwpState_t SenderSwpState;
+typedef struct ReceiverSwpState_t ReceiverSwpState;
 
 //Receiver and sender data structures
 struct Receiver_t
@@ -99,15 +103,21 @@ struct Receiver_t
 
     int recv_id;
 
+    int cur_send_id;
+
     SwpSeqNo LastFrameReceived;
 
-    //8 bits -> 8 next SeqNo
+    //7 bits -> 7 next SeqNo except the adjacent one
     //1 -> seq received
+    //bit 0 should always be zero
     uint8_t SwpWindow;
 
     Frame framesInWindow[SWP_WINDOW_SIZE - 1];
 
     uint8_t preMsgHasSubsequent;
+
+    uint8_t hasSavedSwpState[MAX_COM_ID];
+    ReceiverSwpState* SavedSwpStates[MAX_COM_ID];
 };
 
 struct Sender_t
@@ -124,6 +134,8 @@ struct Sender_t
     LLnode * input_framelist_head;
     int send_id;
 
+    int cur_recv_id;
+
     //SeqNum : 0 ~ 255
     SwpSeqNo LastAckReceived;
     SwpSeqNo LastFrameSent;
@@ -135,7 +147,10 @@ struct Sender_t
     Frame framesInWindow[SWP_WINDOW_SIZE];
 
     SwpSeqNo lastAckNo;
-    int lastAckNoduplicateTimes;
+    int lastAckNoDuplicateTimes;
+
+    uint8_t hasSavedSwpState[MAX_COM_ID];
+    SenderSwpState* SavedSwpStates[MAX_COM_ID];
 };
 
 enum SendFrame_DstType
@@ -147,6 +162,23 @@ enum SendFrame_DstType
 typedef struct Sender_t Sender;
 typedef struct Receiver_t Receiver;
 
+struct SenderSwpState_t
+{
+    SwpSeqNo LastAckReceived;
+    SwpSeqNo LastFrameSent;
+    uint8_t SwpWindow;
+    Frame framesInWindow[SWP_WINDOW_SIZE];
+    SwpSeqNo lastAckNo;
+    int lastAckNoDuplicateTimes;
+};
+
+struct ReceiverSwpState_t
+{
+    SwpSeqNo LastFrameReceived;
+    uint8_t SwpWindow;
+    Frame framesInWindow[SWP_WINDOW_SIZE - 1];
+    uint8_t preMsgHasSubsequent;
+};
 
 //Declare global variables here
 //DO NOT CHANGE:

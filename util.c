@@ -156,7 +156,7 @@ char * convert_frame_to_char(Frame * frame)
     memcpy(curPos, &(frame->swpSeqNo), sizeof(SwpSeqNo));
     curPos += sizeof(SwpSeqNo);
 
-    memcpy(curPos, &(frame->recv_id), sizeof(uint16_t));
+    memcpy(curPos, &(frame->send_id), sizeof(uint16_t));
     curPos += sizeof(uint16_t);
 
     memcpy(curPos, &(frame->recv_id), sizeof(uint16_t));

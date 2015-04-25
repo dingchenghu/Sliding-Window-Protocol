@@ -41,7 +41,13 @@ uint8_t frameIsCorrupted(Frame *frame){
 	char* char_buf = convert_frame_to_char(frame);
 	if(frame->parity == crc32(char_buf, sizeof(SwpSeqNo) + sizeof(uint16_t) +
 		sizeof(uint16_t) + FRAME_FLAG_SIZE + FRAME_PAYLOAD_SIZE))
+	{
 		return 0;
+	}
 	else
+	{
+		if(frame->parity == 0)
+			fprintf(stderr, "crcfail(%X)\n", frame->parity);
 		return 1;
+	}
 }

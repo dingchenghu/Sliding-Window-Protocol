@@ -198,6 +198,7 @@ int main(int argc, char *argv[])
          i < glb_senders_array_length;
          i++)
     {
+        destroy_sender(&glb_senders_array[i]);
         pthread_cancel(sender_threads[i]);
         pthread_join(sender_threads[i], NULL);
     }
@@ -206,6 +207,7 @@ int main(int argc, char *argv[])
          i < glb_receivers_array_length;
          i++)
     {
+        destroy_receiver(&glb_receivers_array[i]);
         pthread_cancel(receiver_threads[i]);
         pthread_join(receiver_threads[i], NULL);
     }

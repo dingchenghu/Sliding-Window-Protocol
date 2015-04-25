@@ -20,6 +20,7 @@
 
 
 void init_receiver(Receiver *, int);
+void destroy_receiver(Receiver *);
 void * run_receiver(void *);
 
 #endif

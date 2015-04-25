@@ -9,6 +9,8 @@ void init_receiver(Receiver * receiver, int id)
     pthread_mutex_init(&receiver->buffer_mutex, NULL);
 
     receiver->recv_id = id;
+    receiver->cur_send_id = 0;
+
     receiver->input_framelist_head = NULL;
 
     receiver->LastFrameReceived = 0 - 1;
@@ -19,6 +21,61 @@ void init_receiver(Receiver * receiver, int id)
         sizeof(Frame) * SWP_WINDOW_SIZE - 1);
 
     receiver->preMsgHasSubsequent = 0;
+
+    memset(receiver->hasSavedSwpState, 0, MAX_COM_ID);
+}
+
+void destroy_receiver(Receiver * receiver)
+{
+    int i;
+    for(i = 0; i < MAX_COM_ID; i++)
+        if(receiver->hasSavedSwpState[i])
+            free(receiver->SavedSwpStates[i]);
+}
+
+/*
+struct ReceiverSwpState_t
+{
+    SwpSeqNo LastFrameReceived;
+    uint8_t SwpWindow;
+    Frame framesInWindow[SWP_WINDOW_SIZE - 1];
+    uint8_t preMsgHasSubsequent;
+};
+*/
+
+void switchSender(Receiver *receiver, uint16_t cur_send_id, uint16_t new_send_id)
+{
+    //save state for current receiver
+    receiver->SavedSwpStates[cur_send_id] = (ReceiverSwpState*) malloc(sizeof(ReceiverSwpState));
+
+    receiver->SavedSwpStates[cur_send_id]->LastFrameReceived = receiver->LastFrameReceived;
+    receiver->SavedSwpStates[cur_send_id]->SwpWindow = receiver->SwpWindow;
+    memcpy(receiver->SavedSwpStates[cur_send_id]->framesInWindow, receiver->framesInWindow,
+        sizeof(Frame) * (SWP_WINDOW_SIZE - 1));
+    receiver->SavedSwpStates[cur_send_id]->preMsgHasSubsequent = receiver->preMsgHasSubsequent;
+
+    receiver->hasSavedSwpState[cur_send_id] = 1;
+
+    //if has saved state
+    if(receiver->hasSavedSwpState[new_send_id] == 1)
+    {
+        receiver->LastFrameReceived = receiver->SavedSwpStates[new_send_id]->LastFrameReceived;
+        receiver->SwpWindow = receiver->SavedSwpStates[new_send_id]->SwpWindow;
+        memcpy(receiver->framesInWindow, receiver->SavedSwpStates[new_send_id]->framesInWindow,
+            sizeof(Frame) * (SWP_WINDOW_SIZE - 1));
+        receiver->preMsgHasSubsequent = receiver->SavedSwpStates[new_send_id]->preMsgHasSubsequent;
+    }
+
+    //new init state
+    else
+    {
+        receiver->LastFrameReceived = 0 - 1;
+        receiver->SwpWindow = 0;
+        memset(receiver->framesInWindow, (unsigned char) 0, sizeof(Frame) * (SWP_WINDOW_SIZE - 1));
+        receiver->preMsgHasSubsequent = 0;
+    }
+
+    receiver->cur_send_id = new_send_id;
 }
 
 void print_msg(Receiver *receiver, Frame *inframe)
@@ -77,9 +134,26 @@ void handle_incoming_msgs(Receiver * receiver,
 
         Frame * inframe = convert_char_to_frame(raw_char_buf);
 
+        if(frameIsCorrupted(inframe) || inframe->recv_id != receiver->recv_id)
+        {
+            free(raw_char_buf);
+            free(inframe);
+            free(ll_inmsg_node);
+            continue;
+        }
+
+        //assert(inframe->send_id == 0);
+
+        //changed sender
+        if(inframe->send_id != receiver->cur_send_id)
+        {
+            fprintf(stderr, "Receiver #%d, curSender = #%d, newSender = #%d, switching sender...\n\n",
+                receiver->recv_id, receiver->cur_send_id, inframe->send_id);
+            switchSender(receiver, receiver->cur_send_id, inframe->send_id);
+        }
+
         //not for this receiver / corrupted / SeqNo > Acceptable No
-        if(inframe->recv_id != receiver->recv_id || frameIsCorrupted(inframe)
-            || (SwpSeqNo_minus(inframe->swpSeqNo, receiver->LastFrameReceived) > SWP_WINDOW_SIZE
+        if((SwpSeqNo_minus(inframe->swpSeqNo, receiver->LastFrameReceived) > SWP_WINDOW_SIZE
             && (SwpSeqNo_minus(inframe->swpSeqNo, receiver->LastFrameReceived) < 128))){
             free(raw_char_buf);
             free(inframe);

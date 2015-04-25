@@ -20,6 +20,7 @@
 
 
 void init_sender(Sender *, int);
+void destroy_sender(Sender *);
 void * run_sender(void *);
 
 #endif

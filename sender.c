@@ -10,6 +10,8 @@ void init_sender(Sender * sender, int id)
 
     //TODO: You should fill in this function as necessary
     sender->send_id = id;
+    sender->cur_recv_id = 0;
+
     sender->input_cmdlist_head = NULL;
     sender->input_framelist_head = NULL;
 
@@ -18,11 +20,74 @@ void init_sender(Sender * sender, int id)
 
     sender->SwpWindow = 0;
 
-    memset(sender->framesInWindow, (unsigned char) 0,
-        sizeof(Frame) * SWP_WINDOW_SIZE);
+    memset(sender->framesInWindow, (unsigned char) 0, sizeof(Frame) * SWP_WINDOW_SIZE);
 
     sender->lastAckNo = 128;
-    sender->lastAckNoduplicateTimes = 0;
+    sender->lastAckNoDuplicateTimes = 0;
+
+    memset(sender->hasSavedSwpState, 0, MAX_COM_ID);
+}
+
+void destroy_sender(Sender *sender)
+{
+    int i;
+    for(i = 0; i < MAX_COM_ID; i++)
+        if(sender->hasSavedSwpState[i])
+            free(sender->SavedSwpStates[i]);
+}
+
+/*
+struct SenderSwpState_t
+{
+    SwpSeqNo LastAckReceived;
+    SwpSeqNo LastFrameSent;
+    uint8_t SwpWindow;
+    Frame framesInWindow[SWP_WINDOW_SIZE];
+    SwpSeqNo lastAckNo;
+    int lastAckNoDuplicateTimes;
+};
+*/
+
+void switchReceiver(Sender *sender, uint16_t cur_rec_id, uint16_t new_recv_id)
+{
+    //save state for current receiver
+    sender->SavedSwpStates[cur_rec_id] = (SenderSwpState*) malloc(sizeof(SenderSwpState));
+
+    sender->SavedSwpStates[cur_rec_id]->LastAckReceived = sender->LastAckReceived;
+    sender->SavedSwpStates[cur_rec_id]->LastFrameSent = sender->LastFrameSent;
+    sender->SavedSwpStates[cur_rec_id]->SwpWindow = sender->SwpWindow;
+    memcpy(sender->SavedSwpStates[cur_rec_id]->framesInWindow, sender->framesInWindow,
+        sizeof(Frame) * SWP_WINDOW_SIZE);
+    sender->SavedSwpStates[cur_rec_id]->lastAckNo = sender->lastAckNo;
+    sender->SavedSwpStates[cur_rec_id]->lastAckNoDuplicateTimes = sender->lastAckNoDuplicateTimes;
+
+    sender->hasSavedSwpState[cur_rec_id] = 1;
+
+    //if has saved state
+    if(sender->hasSavedSwpState[new_recv_id] == 1)
+    {
+        assert(0);
+        sender->LastAckReceived = sender->SavedSwpStates[new_recv_id]->LastAckReceived;
+        sender->LastFrameSent = sender->SavedSwpStates[new_recv_id]->LastFrameSent;
+        sender->SwpWindow = sender->SavedSwpStates[new_recv_id]->SwpWindow;
+        memcpy(sender->framesInWindow, sender->SavedSwpStates[new_recv_id]->framesInWindow,
+            sizeof(Frame) * SWP_WINDOW_SIZE);
+        sender->lastAckNo = sender->SavedSwpStates[new_recv_id]->lastAckNo;
+        sender->lastAckNoDuplicateTimes = sender->SavedSwpStates[new_recv_id]->lastAckNoDuplicateTimes;
+    }
+
+    //new init state
+    else
+    {
+        sender->LastAckReceived = 0 - 1;
+        sender->LastFrameSent = 0 - 1;
+        sender->SwpWindow = 0;
+        memset(sender->framesInWindow, (unsigned char) 0, sizeof(Frame) * SWP_WINDOW_SIZE);
+        sender->lastAckNo = 128;
+        sender->lastAckNoDuplicateTimes = 0;
+    }
+
+    sender->cur_recv_id = new_recv_id;
 }
 
 struct timeval * sender_get_next_expiring_timeval(Sender * sender)
@@ -59,7 +124,9 @@ void rightShiftSWPWindow(Sender * sender, int n){
         sizeof(Frame) * (SWP_WINDOW_SIZE - n));
 }
 
-void retransimit(Sender * sender, LLnode ** outgoing_frames_head_ptr){
+void retransimit(Sender * sender, LLnode ** outgoing_frames_head_ptr)
+{
+
     for(int i = 0; i < SWP_WINDOW_SIZE; i++)
     {
         int n = SWP_WINDOW_SIZE - 1 - i;
@@ -117,18 +184,41 @@ void handle_incoming_acks(Sender * sender,
 
         SwpSeqNo AckNo = inframe->swpSeqNo;
 
+        if(frameIsCorrupted(inframe))
+        {
+            free(inframe);
+            free(ll_inmsg_node);
+            continue;
+        }
+
+        //assert(inframe->send_id == 0);
+
+        if(inframe->recv_id != sender->send_id)
+        {
+            free(inframe);
+            continue;
+        }
+
+        //changed receiver
+        if(inframe->send_id != sender->cur_recv_id)
+        {
+            fprintf(stderr, "Sender #%d, curSender = #%d, newSender = #%d, switching sender...\n\n",
+                sender->send_id, sender->cur_recv_id, inframe->send_id);
+            switchReceiver(sender, sender->cur_recv_id, inframe->send_id);
+        }
+
         if(AckNo == sender->lastAckNo)
-            sender->lastAckNoduplicateTimes += 1;
+            sender->lastAckNoDuplicateTimes += 1;
         else
         {
             sender->lastAckNo = AckNo;
-            sender->lastAckNoduplicateTimes = 0;
+            sender->lastAckNoDuplicateTimes = 0;
         }
 
-        if(sender->lastAckNoduplicateTimes > 2)
+        if(sender->lastAckNoDuplicateTimes > 2)
             retransimit(sender, outgoing_frames_head_ptr);
 
-        if(inframe->recv_id != sender->send_id || frameIsCorrupted(inframe)
+        if(inframe->recv_id != sender->send_id
             || ((SwpSeqNo_minus(AckNo, sender->LastAckReceived) > SWP_WINDOW_SIZE)
             && SwpSeqNo_minus(AckNo, sender->LastAckReceived) < 128))
         {
@@ -247,6 +337,14 @@ void handle_input_cmds(Sender * sender,
         if(outgoing_cmd->src_id != sender->send_id){
             free(outgoing_cmd);
             continue;
+        }
+
+        //changed receiver
+        if(outgoing_cmd->dst_id != sender->cur_recv_id)
+        {
+            fprintf(stderr, "Sender #%d, curSender = #%d, newSender = #%d, switching sender...\n\n",
+                sender->send_id, sender->cur_recv_id, outgoing_cmd->send_id);
+            switchReceiver(sender, sender->cur_recv_id, outgoing_cmd->dst_id);
         }
 
         //DUMMY CODE: Add the raw char buf to the outgoing_frames list
