@@ -23,6 +23,9 @@ void init_receiver(Receiver * receiver, int id)
     receiver->preMsgHasSubsequent = 0;
 
     memset(receiver->hasSavedSwpState, 0, MAX_COM_ID);
+
+    receiver->longMsgBufferSize = 0;;
+    receiver->longMsgBuffer = NULL;
 }
 
 void destroy_receiver(Receiver * receiver)
@@ -30,7 +33,13 @@ void destroy_receiver(Receiver * receiver)
     int i;
     for(i = 0; i < MAX_COM_ID; i++)
         if(receiver->hasSavedSwpState[i])
+        {
+            //still has unfinished long msg
+            if(receiver->SavedSwpStates[i]->preMsgHasSubsequent)
+                free(receiver->SavedSwpStates[i]->longMsgBuffer);
+
             free(receiver->SavedSwpStates[i]);
+        }
 }
 
 /*
@@ -43,6 +52,7 @@ struct ReceiverSwpState_t
 };
 */
 
+//switch the swp state for another sender
 void switchSender(Receiver *receiver, uint16_t cur_send_id, uint16_t new_send_id)
 {
     //save state for current receiver
@@ -52,7 +62,10 @@ void switchSender(Receiver *receiver, uint16_t cur_send_id, uint16_t new_send_id
     receiver->SavedSwpStates[cur_send_id]->SwpWindow = receiver->SwpWindow;
     memcpy(receiver->SavedSwpStates[cur_send_id]->framesInWindow, receiver->framesInWindow,
         sizeof(Frame) * (SWP_WINDOW_SIZE - 1));
-    //receiver->SavedSwpStates[cur_send_id]->preMsgHasSubsequent = receiver->preMsgHasSubsequent;
+    receiver->SavedSwpStates[cur_send_id]->preMsgHasSubsequent = receiver->preMsgHasSubsequent;
+    receiver->SavedSwpStates[cur_send_id]->longMsgBufferSize = receiver->longMsgBufferSize;
+    memcpy(receiver->SavedSwpStates[cur_send_id]->longMsgBuffer,
+        receiver->longMsgBuffer, receiver->longMsgBufferSize * sizeof(char));
 
     receiver->hasSavedSwpState[cur_send_id] = 1;
 
@@ -63,7 +76,10 @@ void switchSender(Receiver *receiver, uint16_t cur_send_id, uint16_t new_send_id
         receiver->SwpWindow = receiver->SavedSwpStates[new_send_id]->SwpWindow;
         memcpy(receiver->framesInWindow, receiver->SavedSwpStates[new_send_id]->framesInWindow,
             sizeof(Frame) * (SWP_WINDOW_SIZE - 1));
-        //receiver->preMsgHasSubsequent = receiver->SavedSwpStates[new_send_id]->preMsgHasSubsequent;
+        receiver->preMsgHasSubsequent = receiver->SavedSwpStates[new_send_id]->preMsgHasSubsequent;
+        receiver->longMsgBufferSize = receiver->SavedSwpStates[new_send_id]->longMsgBufferSize;
+        memcpy(receiver->longMsgBuffer, receiver->SavedSwpStates[new_send_id]->longMsgBuffer,
+            receiver->SavedSwpStates[new_send_id]->longMsgBufferSize);
     }
 
     //new init state
@@ -72,7 +88,9 @@ void switchSender(Receiver *receiver, uint16_t cur_send_id, uint16_t new_send_id
         receiver->LastFrameReceived = 0 - 1;
         receiver->SwpWindow = 0;
         memset(receiver->framesInWindow, (unsigned char) 0, sizeof(Frame) * (SWP_WINDOW_SIZE - 1));
-        //receiver->preMsgHasSubsequent = 0;
+        receiver->preMsgHasSubsequent = 0;
+        receiver->longMsgBufferSize = 0;;
+        receiver->longMsgBuffer = NULL;
     }
 
     receiver->cur_send_id = new_send_id;
@@ -86,21 +104,35 @@ void print_msg(Receiver *receiver, Frame *inframe)
         // in long msg
         if((inframe->flag[0] & (1 << 7)) == (1 << 7))
         {
-            printf("%s", inframe->data);
+            //printf("%s", inframe->data);
+            receiver->longMsgBuffer = (char*) realloc(receiver->longMsgBuffer, receiver->longMsgBufferSize + FRAME_PAYLOAD_SIZE);
+            memcpy(receiver->longMsgBuffer + receiver->longMsgBufferSize,
+                inframe->data, sizeof(char) * FRAME_PAYLOAD_SIZE);
+            receiver->longMsgBufferSize += FRAME_PAYLOAD_SIZE;
+            receiver->preMsgHasSubsequent = 1;
         }
         // long msg end
         else
         {
-            printf("%s]\n",  inframe->data);
+            receiver->longMsgBuffer = (char*) realloc(receiver->longMsgBuffer, receiver->longMsgBufferSize + FRAME_PAYLOAD_SIZE);
+            memcpy(receiver->longMsgBuffer + receiver->longMsgBufferSize,
+                inframe->data, sizeof(char) * strlen(inframe->data) + 1);
+
+            printf("<RECV_%d>:[%s]\n", receiver->recv_id, receiver->longMsgBuffer);
             receiver->preMsgHasSubsequent = 0;
+            receiver->longMsgBufferSize = 0;
+            free(receiver->longMsgBuffer);
         }
 
     }
     // long msg begin
     else if((inframe->flag[0] & (1 << 7)) == (1 << 7))
     {
-        printf("<RECV_%d>:[%s", receiver->recv_id, inframe->data);
+        //printf("<RECV_%d>:[%s", receiver->recv_id, inframe->data);
         receiver->preMsgHasSubsequent = 1;
+        receiver->longMsgBufferSize = FRAME_PAYLOAD_SIZE;
+        receiver->longMsgBuffer = (char*) malloc(sizeof(char) * FRAME_PAYLOAD_SIZE);
+        memcpy(receiver->longMsgBuffer, inframe->data, sizeof(char) * FRAME_PAYLOAD_SIZE);
     }
     //short msg
     else
@@ -162,12 +194,10 @@ void handle_incoming_msgs(Receiver * receiver,
             continue;
         }
 
-        /*
         fprintf(stderr, "Receiver %d receiving a frame: \n\t", receiver->recv_id);
         printFrame(inframe);
         fprintf(stderr, "\tSending ACK : %d\n", inframe->swpSeqNo);
         fprintf(stderr, "\n");
-        */
 
         //Free raw_char_buf
         free(raw_char_buf);

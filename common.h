@@ -118,6 +118,9 @@ struct Receiver_t
 
     uint8_t hasSavedSwpState[MAX_COM_ID];
     ReceiverSwpState* SavedSwpStates[MAX_COM_ID];
+
+    int longMsgBufferSize;
+    char* longMsgBuffer;
 };
 
 struct Sender_t
@@ -178,6 +181,8 @@ struct ReceiverSwpState_t
     uint8_t SwpWindow;
     Frame framesInWindow[SWP_WINDOW_SIZE - 1];
     uint8_t preMsgHasSubsequent;
+    int longMsgBufferSize;
+    char *longMsgBuffer;
 };
 
 //Declare global variables here

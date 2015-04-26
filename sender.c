@@ -48,6 +48,7 @@ struct SenderSwpState_t
 };
 */
 
+//switch the swp state for another receiver
 void switchReceiver(Sender *sender, uint16_t cur_rec_id, uint16_t new_recv_id)
 {
     //save state for current receiver
@@ -345,7 +346,6 @@ void handle_incoming_acks(Sender * sender,
     }
 
 }
-
 
 void handle_input_cmds(Sender * sender,
                        LLnode ** outgoing_frames_head_ptr)
