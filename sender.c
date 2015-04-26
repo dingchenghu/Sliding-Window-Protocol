@@ -126,9 +126,14 @@ void rightShiftSWPWindow(Sender * sender, int n){
 // retransimit for current reciever
 void retransimit(Sender * sender, LLnode ** outgoing_frames_head_ptr)
 {
+    if(ll_get_length(*outgoing_frames_head_ptr) >= SWP_WINDOW_SIZE)
+        return;
 
     for(int i = 0; i < SWP_WINDOW_SIZE; i++)
     {
+        if(ll_get_length(*outgoing_frames_head_ptr) >= SWP_WINDOW_SIZE)
+            break;
+
         int n = SWP_WINDOW_SIZE - 1 - i;
 
         if(SwpSeqNo_minus(sender->LastFrameSent, sender->LastAckReceived) <= i)
@@ -161,8 +166,14 @@ void retransimit(Sender * sender, LLnode ** outgoing_frames_head_ptr)
 // retransimit for every recievers except current one
 void retransimitOthers(Sender * sender, LLnode ** outgoing_frames_head_ptr)
 {
+    if(ll_get_length(*outgoing_frames_head_ptr) >= SWP_WINDOW_SIZE)
+        return;
+
     for(int r = 0; r < MAX_COM_ID; r++)
     {
+        if(ll_get_length(*outgoing_frames_head_ptr) >= SWP_WINDOW_SIZE)
+            break;
+
         if(sender->hasSavedSwpState[r] == 0)
             continue;
 
@@ -172,6 +183,9 @@ void retransimitOthers(Sender * sender, LLnode ** outgoing_frames_head_ptr)
 
         for(int i = 0; i < SWP_WINDOW_SIZE; i++)
         {
+            if(ll_get_length(*outgoing_frames_head_ptr) >= SWP_WINDOW_SIZE)
+                break;
+
             int n = SWP_WINDOW_SIZE - 1 - i;
 
             if(SwpSeqNo_minus(sender->SavedSwpStates[r]->LastFrameSent,
@@ -356,8 +370,10 @@ void handle_input_cmds(Sender * sender,
 
     while (input_cmd_length > 0)
     {
-        //pause sending, waiting for acks
+        if(ll_get_length(*outgoing_frames_head_ptr) >= SWP_WINDOW_SIZE)
+            break;
 
+        //pause sending, waiting for acks
         if((SwpSeqNo_minus(sender->LastFrameSent, sender->LastAckReceived) >= SWP_WINDOW_SIZE))
         {
             break;
@@ -600,6 +616,8 @@ void * run_sender(void * input_sender)
         //CHANGE THIS AT YOUR OWN RISK!
         //Send out all the frames
         int ll_outgoing_frame_length = ll_get_length(outgoing_frames_head);
+
+        assert(ll_outgoing_frame_length <= SWP_WINDOW_SIZE);
 
         while(ll_outgoing_frame_length > 0)
         {
