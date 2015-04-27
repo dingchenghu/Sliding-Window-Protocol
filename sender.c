@@ -3,6 +3,10 @@
 //#define NDEBUG
 #include <assert.h>
 
+// in usec
+#define MAX_RETRANSMIT_INTERVAL 100000
+#define MIN_RETRANSMIT_INTERVAL 1000
+
 void init_sender(Sender * sender, int id)
 {
     pthread_cond_init(&sender->buffer_cv, NULL);
@@ -11,6 +15,7 @@ void init_sender(Sender * sender, int id)
     //TODO: You should fill in this function as necessary
     sender->send_id = id;
     sender->cur_recv_id = 0;
+    sender->next_retransmit_recv_id = 0;
 
     sender->input_cmdlist_head = NULL;
     sender->input_framelist_head = NULL;
@@ -21,6 +26,7 @@ void init_sender(Sender * sender, int id)
     sender->SwpWindow = 0;
 
     memset(sender->framesInWindow, (unsigned char) 0, sizeof(Frame) * SWP_WINDOW_SIZE);
+    memset(sender->framesInWindowTimestamp, (unsigned char) 0, sizeof(struct timeval) * SWP_WINDOW_SIZE);
 
     sender->lastAckNo = 128;
     sender->lastAckNoDuplicateTimes = 0;
@@ -59,6 +65,8 @@ void switchReceiver(Sender *sender, uint16_t cur_rec_id, uint16_t new_recv_id)
     sender->SavedSwpStates[cur_rec_id]->SwpWindow = sender->SwpWindow;
     memcpy(sender->SavedSwpStates[cur_rec_id]->framesInWindow, sender->framesInWindow,
         sizeof(Frame) * SWP_WINDOW_SIZE);
+    memcpy(sender->SavedSwpStates[cur_rec_id]->framesInWindowTimestamp, sender->framesInWindowTimestamp,
+        sizeof(struct timeval) * SWP_WINDOW_SIZE);
     sender->SavedSwpStates[cur_rec_id]->lastAckNo = sender->lastAckNo;
     sender->SavedSwpStates[cur_rec_id]->lastAckNoDuplicateTimes = sender->lastAckNoDuplicateTimes;
 
@@ -72,6 +80,8 @@ void switchReceiver(Sender *sender, uint16_t cur_rec_id, uint16_t new_recv_id)
         sender->SwpWindow = sender->SavedSwpStates[new_recv_id]->SwpWindow;
         memcpy(sender->framesInWindow, sender->SavedSwpStates[new_recv_id]->framesInWindow,
             sizeof(Frame) * SWP_WINDOW_SIZE);
+        memcpy(sender->framesInWindowTimestamp, sender->SavedSwpStates[new_recv_id]->framesInWindowTimestamp,
+            sizeof(struct timeval) * SWP_WINDOW_SIZE);
         sender->lastAckNo = sender->SavedSwpStates[new_recv_id]->lastAckNo;
         sender->lastAckNoDuplicateTimes = sender->SavedSwpStates[new_recv_id]->lastAckNoDuplicateTimes;
     }
@@ -94,19 +104,84 @@ struct timeval * sender_get_next_expiring_timeval(Sender * sender)
 {
     //TODO: You should fill in this function so that it returns the next timeout that should occur
 
-    struct timeval curr_timeval;
-    gettimeofday(&curr_timeval, NULL);
+    //get the earliest to retransmit
+
+    struct timeval min_t;
+    gettimeofday(&min_t, NULL);
+
+    for(int r = 0; r < MAX_COM_ID; r++)
+    {
+        if(sender->hasSavedSwpState[r] == 0)
+            continue;
+
+        //skip current receiver (current state unsaved)
+        if(r == sender->cur_recv_id)
+            continue;
+
+        for(int i = 0; i < SWP_WINDOW_SIZE; i++)
+        {
+
+            int n = SWP_WINDOW_SIZE - 1 - i;
+
+            if(SwpSeqNo_minus(sender->SavedSwpStates[r]->LastFrameSent,
+                sender->SavedSwpStates[r]->LastAckReceived) <= i)
+                break;
+
+            // ack not received
+            if((sender->SavedSwpStates[r]->SwpWindow & (1 << n)) == 0)
+            {
+                if(timevalLess(sender->SavedSwpStates[r]->framesInWindowTimestamp[i], min_t))
+                {
+                    min_t.tv_sec = sender->SavedSwpStates[r]->framesInWindowTimestamp[i].tv_sec;
+                    min_t.tv_usec = sender->SavedSwpStates[r]->framesInWindowTimestamp[i].tv_usec;
+
+                    //determine which receiver to retransmit for the next weakup
+                    sender->next_retransmit_recv_id = r;
+                }
+            }
+        }
+    }
+
+    //for current receiver swp window
+    for(int i = 0; i < SWP_WINDOW_SIZE; i++)
+    {
+        int n = SWP_WINDOW_SIZE - 1 - i;
+
+        if(SwpSeqNo_minus(sender->LastFrameSent,
+            sender->LastAckReceived) <= i)
+            break;
+
+        // ack not received
+        if((sender->SwpWindow & (1 << n)) == 0)
+        {
+            if(timevalLess(sender->framesInWindowTimestamp[i], min_t))
+            {
+                min_t.tv_sec = sender->framesInWindowTimestamp[i].tv_sec;
+                min_t.tv_usec = sender->framesInWindowTimestamp[i].tv_usec;
+
+                sender->next_retransmit_recv_id = sender->cur_recv_id;
+            }
+        }
+    }
 
     struct timeval *t = (struct timeval*) malloc(sizeof(struct timeval));
 
-    t->tv_sec = curr_timeval.tv_sec;
-    t->tv_usec = curr_timeval.tv_usec + 100000;
+    //t->tv_sec = curr_timeval.tv_sec;
+    //t->tv_usec = curr_timeval.tv_usec + 100000;
+
+    t->tv_sec = min_t.tv_sec;
+    t->tv_usec = min_t.tv_usec + (MAX_RETRANSMIT_INTERVAL / (MAX_COM_ID + 1));
 
     if (t->tv_usec >= 1000000)
     {
         t->tv_sec++;
         t->tv_usec -= 1000000;
     }
+
+    struct timeval curr_timeval;
+    gettimeofday(&curr_timeval, NULL);
+    fprintf(stderr, "Sender %d next timeout: %ld usec\n",
+        sender->send_id, (t->tv_sec - curr_timeval.tv_sec) * 1000000 + t->tv_usec - curr_timeval.tv_usec);
 
     return t;
 }
@@ -158,6 +233,11 @@ void retransimit(Sender * sender, LLnode ** outgoing_frames_head_ptr)
             char * outgoing_charbuf = convert_frame_to_char(outgoing_frame);
             ll_append_node(outgoing_frames_head_ptr, outgoing_charbuf);
 
+            //update timestamps
+            struct timeval curr_timeval;
+            gettimeofday(&curr_timeval, NULL);
+            sender->framesInWindowTimestamp[i] = curr_timeval;
+
             free(outgoing_frame);
         }
         //fprintf(stderr, "\n");
@@ -202,6 +282,11 @@ void retransimitOthers(Sender * sender, LLnode ** outgoing_frames_head_ptr)
 
                 char * outgoing_charbuf = convert_frame_to_char(outgoing_frame);
                 ll_append_node(outgoing_frames_head_ptr, outgoing_charbuf);
+
+                //update timestamps
+                struct timeval curr_timeval;
+                gettimeofday(&curr_timeval, NULL);
+                sender->framesInWindowTimestamp[i] = curr_timeval;
 
                 free(outgoing_frame);
 
@@ -253,8 +338,8 @@ void handle_incoming_acks(Sender * sender,
         //changed receiver
         if(inframe->send_id != sender->cur_recv_id)
         {
-            fprintf(stderr, "Sender #%d, curSender = #%d, newSender = #%d, switching sender...\n\n",
-                sender->send_id, sender->cur_recv_id, inframe->send_id);
+            //fprintf(stderr, "Sender #%d, curSender = #%d, newSender = #%d, switching sender...\n\n",
+            //    sender->send_id, sender->cur_recv_id, inframe->send_id);
             switchReceiver(sender, sender->cur_recv_id, inframe->send_id);
         }
 
@@ -396,8 +481,8 @@ void handle_input_cmds(Sender * sender,
         //changed receiver
         if(outgoing_cmd->dst_id != sender->cur_recv_id)
         {
-            fprintf(stderr, "Sender #%d, curSender = #%d, newSender = #%d, switching sender...\n\n",
-                sender->send_id, sender->cur_recv_id, outgoing_cmd->dst_id);
+            //fprintf(stderr, "Sender #%d, curSender = #%d, newSender = #%d, switching sender...\n\n",
+            //    sender->send_id, sender->cur_recv_id, outgoing_cmd->dst_id);
             switchReceiver(sender, sender->cur_recv_id, outgoing_cmd->dst_id);
         }
 
@@ -453,24 +538,30 @@ void handle_input_cmds(Sender * sender,
         frameAddCRC32(outgoing_frame);
         assert(frameIsCorrupted(outgoing_frame) == 0);
 
-
+        /*
         fprintf(stderr, "Sender %d sending a frame: \n\t",
             sender->send_id);
         printFrame(outgoing_frame);
 
         fprintf(stderr, "\tFrame backuped, LFS = %d, LAR = %d\n\n",
             sender->LastFrameSent, sender->LastAckReceived);
+        */
 
         //assert(sender->LastAckReceived != sender->LastFrameSent);
-
-        //backup frame
         assert(SwpSeqNo_minus(sender->LastFrameSent, sender->LastAckReceived) <= SWP_WINDOW_SIZE);
 
+        //backup frame
         if(sender->LastAckReceived != sender->LastFrameSent)
         {
             memcpy(sender->framesInWindow + SwpSeqNo_minus(sender->LastFrameSent, sender->LastAckReceived) - 1,
                 outgoing_frame, sizeof(Frame));
         }
+
+        //add timestamps for backup
+        struct timeval curr_timeval;
+        gettimeofday(&curr_timeval, NULL);
+        sender->framesInWindowTimestamp[SwpSeqNo_minus(sender->LastFrameSent, sender->LastAckReceived) - 1]
+            = curr_timeval;
 
         //Convert the message to the outgoing_charbuf
         char * outgoing_charbuf = convert_frame_to_char(outgoing_frame);
@@ -505,6 +596,7 @@ void handle_timedout_frames(Sender * sender,
     {
         //fprintf(stderr, "\tLFS != LAR, retransimitting...\n\tSWP windows flag = %X\n\n",
         //    sender->SwpWindow);
+        switchReceiver(sender, sender->cur_recv_id, sender->next_retransmit_recv_id);
         retransimit(sender, outgoing_frames_head_ptr);
         retransimitOthers(sender, outgoing_frames_head_ptr);
     }
@@ -560,12 +652,19 @@ void * run_sender(void * input_sender)
             free(expiring_timeval);
 
             //Sleep if the difference is positive
-            assert(sleep_usec_time > 0);
+            //assert(sleep_usec_time > 0);
 
-            if (sleep_usec_time > 0)
+            if (sleep_usec_time > 1000)
             {
                 sleep_sec_time = sleep_usec_time / 1000000;
                 sleep_usec_time = sleep_usec_time % 1000000;
+                time_spec.tv_sec += sleep_sec_time;
+                time_spec.tv_nsec += sleep_usec_time * 1000;
+            }
+            else
+            {
+                sleep_sec_time = 0;
+                sleep_usec_time = MIN_RETRANSMIT_INTERVAL;
                 time_spec.tv_sec += sleep_sec_time;
                 time_spec.tv_nsec += sleep_usec_time * 1000;
             }

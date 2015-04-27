@@ -141,6 +141,7 @@ struct Sender_t
     int send_id;
 
     int cur_recv_id;
+    int next_retransmit_recv_id;
 
     //SeqNum : 0 ~ 255
     SwpSeqNo LastAckReceived;
@@ -151,6 +152,7 @@ struct Sender_t
     uint8_t SwpWindow;
 
     Frame framesInWindow[SWP_WINDOW_SIZE];
+    struct timeval framesInWindowTimestamp[SWP_WINDOW_SIZE];
 
     SwpSeqNo lastAckNo;
     int lastAckNoDuplicateTimes;
@@ -178,6 +180,7 @@ struct SenderSwpState_t
     Frame framesInWindow[SWP_WINDOW_SIZE];
     SwpSeqNo lastAckNo;
     int lastAckNoDuplicateTimes;
+    struct timeval framesInWindowTimestamp[SWP_WINDOW_SIZE];
 };
 
 struct ReceiverSwpState_t

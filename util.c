@@ -207,16 +207,31 @@ Frame * convert_char_to_frame(char * char_buf)
     return frame;
 }
 
-void printFrame(Frame* f){
+void printFrame(Frame* f)
+{
     fprintf(stderr, "SeqNo: %d, SendID: %d, RecvID: %d, Flag: %X%X%X, Parity %X, Data: %s\n",
         f->swpSeqNo, f->send_id, f->recv_id,
         f->flag[0], f->flag[1], f->flag[2],
         f->parity, f->data);
 }
 
-uint8_t SwpSeqNo_minus(SwpSeqNo a, SwpSeqNo b){
+uint8_t SwpSeqNo_minus(SwpSeqNo a, SwpSeqNo b)
+{
     if(a >= b)
         return a - b;
     else
         return 255 - b + a + 1;
+}
+
+//return if ta < tb (earlier)
+uint8_t timevalLess(struct timeval ta, struct timeval tb)
+{
+    if(ta.tv_sec < tb.tv_sec)
+        return 1;
+    else if(ta.tv_sec > tb.tv_sec)
+        return 0;
+    else if(ta.tv_usec < tb.tv_usec)
+        return 1;
+    else
+        return 0;
 }

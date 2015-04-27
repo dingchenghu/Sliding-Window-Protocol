@@ -194,10 +194,12 @@ void handle_incoming_msgs(Receiver * receiver,
             continue;
         }
 
+        /*
         fprintf(stderr, "Receiver %d receiving a frame: \n\t", receiver->recv_id);
         printFrame(inframe);
         fprintf(stderr, "\tSending ACK : %d\n", inframe->swpSeqNo);
         fprintf(stderr, "\n");
+        */
 
         //Free raw_char_buf
         free(raw_char_buf);

@@ -32,6 +32,7 @@ char * convert_frame_to_char(Frame *);
 Frame * convert_char_to_frame(char *);
 
 uint8_t SwpSeqNo_minus(SwpSeqNo a, SwpSeqNo b);
+uint8_t timevalLess(struct timeval ta, struct timeval tb);
 
 void printFrame(Frame* f);
 
