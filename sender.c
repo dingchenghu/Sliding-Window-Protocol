@@ -170,7 +170,10 @@ struct timeval * sender_get_next_expiring_timeval(Sender * sender)
     //t->tv_usec = curr_timeval.tv_usec + 100000;
 
     t->tv_sec = min_t.tv_sec;
-    t->tv_usec = min_t.tv_usec + (MAX_RETRANSMIT_INTERVAL / (MAX_COM_ID + 1));
+    if(MAX_COM_ID > 1)
+        t->tv_usec = min_t.tv_usec + (MAX_RETRANSMIT_INTERVAL / (MAX_COM_ID + 1));
+    else
+    t->tv_usec = min_t.tv_usec + MAX_RETRANSMIT_INTERVAL;
 
     if (t->tv_usec >= 1000000)
     {
