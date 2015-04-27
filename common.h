@@ -84,7 +84,8 @@ struct Frame_t
 };
 typedef struct Frame_t Frame;
 
-#define MAX_COM_ID 65536
+//#define MAX_COM_ID 65536
+uint16_t MAX_COM_ID; //inited in main()
 
 typedef struct SenderSwpState_t SenderSwpState;
 typedef struct ReceiverSwpState_t ReceiverSwpState;
@@ -116,8 +117,10 @@ struct Receiver_t
 
     uint8_t preMsgHasSubsequent;
 
-    uint8_t hasSavedSwpState[MAX_COM_ID];
-    ReceiverSwpState* SavedSwpStates[MAX_COM_ID];
+    //uint8_t hasSavedSwpState[MAX_COM_ID];
+    uint8_t hasSavedSwpState[65536];
+    //ReceiverSwpState* SavedSwpStates[MAX_COM_ID];
+    ReceiverSwpState* SavedSwpStates[65536];
 
     int longMsgBufferSize;
     char* longMsgBuffer;
@@ -152,8 +155,10 @@ struct Sender_t
     SwpSeqNo lastAckNo;
     int lastAckNoDuplicateTimes;
 
-    uint8_t hasSavedSwpState[MAX_COM_ID];
-    SenderSwpState* SavedSwpStates[MAX_COM_ID];
+    //uint8_t hasSavedSwpState[MAX_COM_ID];
+    uint8_t hasSavedSwpState[65536];
+    //SenderSwpState* SavedSwpStates[MAX_COM_ID];
+    SenderSwpState* SavedSwpStates[65536];
 };
 
 enum SendFrame_DstType

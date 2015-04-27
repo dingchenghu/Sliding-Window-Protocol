@@ -112,6 +112,12 @@ int main(int argc, char *argv[])
         exit(1);
     }
 
+    if(glb_senders_array_length > glb_receivers_array_length)
+        MAX_COM_ID = glb_senders_array_length;
+    else
+        MAX_COM_ID = glb_receivers_array_length;
+
+    fprintf(stderr, "MAX_COM_ID = %d\n", MAX_COM_ID);
 
     //DO NOT CHANGE THIS
     //Init the pthreads data structure
