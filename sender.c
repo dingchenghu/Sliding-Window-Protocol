@@ -5,7 +5,7 @@
 
 // in usec
 #define MAX_RETRANSMIT_INTERVAL 100000
-#define MIN_RETRANSMIT_INTERVAL 1000
+#define MIN_RETRANSMIT_INTERVAL 97000
 
 void init_sender(Sender * sender, int id)
 {
@@ -35,7 +35,7 @@ void init_sender(Sender * sender, int id)
 }
 
 void destroy_sender(Sender *sender)
-{
+{   
     int i;
     for(i = 0; i < MAX_COM_ID; i++)
         if(sender->hasSavedSwpState[i])
@@ -171,7 +171,7 @@ struct timeval * sender_get_next_expiring_timeval(Sender * sender)
 
     t->tv_sec = min_t.tv_sec;
     if(MAX_COM_ID > 1)
-        t->tv_usec = min_t.tv_usec + (MAX_RETRANSMIT_INTERVAL / (MAX_COM_ID + 1));
+        t->tv_usec = min_t.tv_usec + MAX_RETRANSMIT_INTERVAL;
     else
     t->tv_usec = min_t.tv_usec + MAX_RETRANSMIT_INTERVAL;
 
@@ -183,8 +183,11 @@ struct timeval * sender_get_next_expiring_timeval(Sender * sender)
 
     struct timeval curr_timeval;
     gettimeofday(&curr_timeval, NULL);
-    fprintf(stderr, "Sender %d next timeout: %ld usec\n",
-        sender->send_id, (t->tv_sec - curr_timeval.tv_sec) * 1000000 + t->tv_usec - curr_timeval.tv_usec);
+    //fprintf(stderr, "Sender %d next timeout: %ld usec\n",
+    //    sender->send_id, (t->tv_sec - curr_timeval.tv_sec) * 1000000 + t->tv_usec - curr_timeval.tv_usec);
+    
+    assert(((t->tv_sec - curr_timeval.tv_sec) * 1000000 + t->tv_usec - curr_timeval.tv_usec) > 0);
+    assert(((t->tv_sec - curr_timeval.tv_sec) * 1000000 + t->tv_usec - curr_timeval.tv_usec) < MAX_RETRANSMIT_INTERVAL * 1.01);
 
     return t;
 }
@@ -218,11 +221,23 @@ void retransimit(Sender * sender, LLnode ** outgoing_frames_head_ptr)
         if(SwpSeqNo_minus(sender->LastFrameSent, sender->LastAckReceived) <= i)
             break;
 
-        //fprintf(stderr, "Retransimiting...\n");
+        struct timeval curr_timeval;
 
-        //retransimit if ack not received
+        //fprintf(stderr, "Retransimiting...\n");
+        
+        //retransimit if ack not received 
+        //and transimited <MIN_RETRANSMIT_INTERVAL> usec before
         if((sender->SwpWindow & (1 << n)) == 0)
         {
+            
+            gettimeofday(&curr_timeval, NULL);
+            long waitedTime_usec = 
+                timeval_usecdiff(sender->framesInWindowTimestamp + i, &curr_timeval);
+            assert(waitedTime_usec > -1);
+            
+            if(waitedTime_usec < MIN_RETRANSMIT_INTERVAL)
+                continue;
+            
             Frame * outgoing_frame = (Frame *) malloc (sizeof(Frame));
             memcpy(outgoing_frame, sender->framesInWindow + i, sizeof(Frame));
 
@@ -237,7 +252,6 @@ void retransimit(Sender * sender, LLnode ** outgoing_frames_head_ptr)
             ll_append_node(outgoing_frames_head_ptr, outgoing_charbuf);
 
             //update timestamps
-            struct timeval curr_timeval;
             gettimeofday(&curr_timeval, NULL);
             sender->framesInWindowTimestamp[i] = curr_timeval;
 
@@ -275,9 +289,19 @@ void retransimitOthers(Sender * sender, LLnode ** outgoing_frames_head_ptr)
             if(SwpSeqNo_minus(sender->SavedSwpStates[r]->LastFrameSent,
                 sender->SavedSwpStates[r]->LastAckReceived) <= i)
                 break;
-
-            if((sender->SavedSwpStates[r]->SwpWindow & (1 << n)) == 0)
+            
+            struct timeval curr_timeval;
+            
+            if((sender->SavedSwpStates[r]->SwpWindow & (1 << n)) == 0 )
             {
+                gettimeofday(&curr_timeval, NULL);
+                uint64_t waitedTime_usec = 
+                    timeval_usecdiff(sender->SavedSwpStates[r]->framesInWindowTimestamp + i, &curr_timeval);
+                assert(waitedTime_usec > 0);
+                
+                if(waitedTime_usec < MIN_RETRANSMIT_INTERVAL)
+                    continue;
+                
                 Frame * outgoing_frame = (Frame *) malloc (sizeof(Frame));
                 memcpy(outgoing_frame, sender->SavedSwpStates[r]->framesInWindow + i, sizeof(Frame));
 
@@ -590,6 +614,11 @@ void handle_timedout_frames(Sender * sender,
     fprintf(stderr, "\tLFS = %d, LAR = %d\n",
             sender->LastFrameSent, sender-> LastAckReceived);
     */
+    
+    struct timeval    curr_timeval;
+    gettimeofday(&curr_timeval, NULL);
+    //fprintf(stderr, "%ld,%d Sender #%d Timeout...\n", curr_timeval.tv_sec, 
+    //    curr_timeval.tv_usec, sender->send_id);
 
     if(sender->LastFrameSent == sender-> LastAckReceived){
         //fprintf(stderr, "\tLFS == LAR, do nothing\n");
@@ -629,8 +658,7 @@ void * run_sender(void * input_sender)
         outgoing_frames_head = NULL;
 
         //Get the current time
-        gettimeofday(&curr_timeval,
-                     NULL);
+        gettimeofday(&curr_timeval, NULL);
 
         //time_spec is a data structure used to specify when the thread should wake up
         //The time is specified as an ABSOLUTE (meaning, conceptually, you specify 9/23/2010 @ 1pm, wakeup)
@@ -649,15 +677,14 @@ void * run_sender(void * input_sender)
         else
         {
             //Take the difference between the next event and the current time
-            sleep_usec_time = timeval_usecdiff(&curr_timeval,
-                                               expiring_timeval);
+            sleep_usec_time = timeval_usecdiff(&curr_timeval, expiring_timeval);
 
             free(expiring_timeval);
 
             //Sleep if the difference is positive
             //assert(sleep_usec_time > 0);
 
-            if (sleep_usec_time > 1000)
+            if (sleep_usec_time > 0)
             {
                 sleep_sec_time = sleep_usec_time / 1000000;
                 sleep_usec_time = sleep_usec_time % 1000000;
@@ -667,7 +694,7 @@ void * run_sender(void * input_sender)
             else
             {
                 sleep_sec_time = 0;
-                sleep_usec_time = MIN_RETRANSMIT_INTERVAL;
+                sleep_usec_time = 0;
                 time_spec.tv_sec += sleep_sec_time;
                 time_spec.tv_nsec += sleep_usec_time * 1000;
             }
