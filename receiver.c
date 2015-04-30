@@ -117,8 +117,27 @@ void print_msg(Receiver *receiver, Frame *inframe)
             receiver->longMsgBuffer = (char*) realloc(receiver->longMsgBuffer, receiver->longMsgBufferSize + FRAME_PAYLOAD_SIZE);
             memcpy(receiver->longMsgBuffer + receiver->longMsgBufferSize,
                 inframe->data, sizeof(char) * strlen(inframe->data) + 1);
+            receiver->longMsgBufferSize += sizeof(char) * strlen(inframe->data);
+            
 
+            //print the msg as a single long msg
+            /*
             printf("<RECV_%d>:[%s]\n", receiver->recv_id, receiver->longMsgBuffer);
+            */
+            
+            //Partitioning
+            int offset = 0;
+            while(receiver->longMsgBufferSize >= FRAME_PAYLOAD_SIZE)
+            {
+                printf("<RECV_%d>:[%.*s]\n", receiver->recv_id, 
+                    FRAME_PAYLOAD_SIZE, receiver->longMsgBuffer + offset);
+                    offset += FRAME_PAYLOAD_SIZE;
+                receiver->longMsgBufferSize -= FRAME_PAYLOAD_SIZE;
+            }
+            if(receiver->longMsgBufferSize != 0)
+                	printf("<RECV_%d>:[%s]\n", receiver->recv_id, 
+                        receiver->longMsgBuffer + offset);
+            
             receiver->preMsgHasSubsequent = 0;
             receiver->longMsgBufferSize = 0;
             free(receiver->longMsgBuffer);
@@ -179,8 +198,8 @@ void handle_incoming_msgs(Receiver * receiver,
         //changed sender
         if(inframe->send_id != receiver->cur_send_id)
         {
-            fprintf(stderr, "Receiver #%d, curSender = #%d, newSender = #%d, switching sender...\n\n",
-                receiver->recv_id, receiver->cur_send_id, inframe->send_id);
+            //fprintf(stderr, "Receiver #%d, curSender = #%d, newSender = #%d, switching sender...\n\n",
+            //    receiver->recv_id, receiver->cur_send_id, inframe->send_id);
             switchSender(receiver, receiver->cur_send_id, inframe->send_id);
         }
 
