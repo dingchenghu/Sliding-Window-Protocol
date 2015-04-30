@@ -4,8 +4,8 @@
 #include <assert.h>
 
 // in usec
-#define MAX_RETRANSMIT_INTERVAL 100000
-#define MIN_RETRANSMIT_INTERVAL 97000
+#define MAX_RETRANSMIT_INTERVAL 97000
+#define MIN_RETRANSMIT_INTERVAL 95000
 
 void init_sender(Sender * sender, int id)
 {
@@ -108,6 +108,8 @@ struct timeval * sender_get_next_expiring_timeval(Sender * sender)
 
     struct timeval min_t;
     gettimeofday(&min_t, NULL);
+    
+    uint8_t fullTimeout = 1;
 
     for(int r = 0; r < MAX_COM_ID; r++)
     {
@@ -132,6 +134,8 @@ struct timeval * sender_get_next_expiring_timeval(Sender * sender)
             {
                 if(timevalLess(sender->SavedSwpStates[r]->framesInWindowTimestamp[i], min_t))
                 {
+                    fullTimeout = 0;
+                    
                     min_t.tv_sec = sender->SavedSwpStates[r]->framesInWindowTimestamp[i].tv_sec;
                     min_t.tv_usec = sender->SavedSwpStates[r]->framesInWindowTimestamp[i].tv_usec;
 
@@ -156,6 +160,8 @@ struct timeval * sender_get_next_expiring_timeval(Sender * sender)
         {
             if(timevalLess(sender->framesInWindowTimestamp[i], min_t))
             {
+                fullTimeout = 0;
+                
                 min_t.tv_sec = sender->framesInWindowTimestamp[i].tv_sec;
                 min_t.tv_usec = sender->framesInWindowTimestamp[i].tv_usec;
 
@@ -163,6 +169,9 @@ struct timeval * sender_get_next_expiring_timeval(Sender * sender)
             }
         }
     }
+    
+    if(fullTimeout)
+        return NULL;
 
     struct timeval *t = (struct timeval*) malloc(sizeof(struct timeval));
 
@@ -183,10 +192,10 @@ struct timeval * sender_get_next_expiring_timeval(Sender * sender)
 
     struct timeval curr_timeval;
     gettimeofday(&curr_timeval, NULL);
-    //fprintf(stderr, "Sender %d next timeout: %ld usec\n",
-    //    sender->send_id, (t->tv_sec - curr_timeval.tv_sec) * 1000000 + t->tv_usec - curr_timeval.tv_usec);
+    fprintf(stderr, "Sender %d next timeout: %ld usec\n",
+        sender->send_id, (t->tv_sec - curr_timeval.tv_sec) * 1000000 + t->tv_usec - curr_timeval.tv_usec);
     
-    assert(((t->tv_sec - curr_timeval.tv_sec) * 1000000 + t->tv_usec - curr_timeval.tv_usec) > 0);
+    //assert(((t->tv_sec - curr_timeval.tv_sec) * 1000000 + t->tv_usec - curr_timeval.tv_usec) >= MAX_RETRANSMIT_INTERVAL - 100000);
     assert(((t->tv_sec - curr_timeval.tv_sec) * 1000000 + t->tv_usec - curr_timeval.tv_usec) < MAX_RETRANSMIT_INTERVAL * 1.01);
 
     return t;
@@ -313,7 +322,7 @@ void retransimitOthers(Sender * sender, LLnode ** outgoing_frames_head_ptr)
                 //update timestamps
                 struct timeval curr_timeval;
                 gettimeofday(&curr_timeval, NULL);
-                sender->framesInWindowTimestamp[i] = curr_timeval;
+                sender->SavedSwpStates[r]->framesInWindowTimestamp[i] = curr_timeval;
 
                 free(outgoing_frame);
 
