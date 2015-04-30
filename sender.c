@@ -192,8 +192,8 @@ struct timeval * sender_get_next_expiring_timeval(Sender * sender)
 
     struct timeval curr_timeval;
     gettimeofday(&curr_timeval, NULL);
-    fprintf(stderr, "Sender %d next timeout: %ld usec\n",
-        sender->send_id, (t->tv_sec - curr_timeval.tv_sec) * 1000000 + t->tv_usec - curr_timeval.tv_usec);
+    //fprintf(stderr, "Sender %d next timeout: %ld usec\n",
+    //    sender->send_id, (t->tv_sec - curr_timeval.tv_sec) * 1000000 + t->tv_usec - curr_timeval.tv_usec);
     
     //assert(((t->tv_sec - curr_timeval.tv_sec) * 1000000 + t->tv_usec - curr_timeval.tv_usec) >= MAX_RETRANSMIT_INTERVAL - 100000);
     assert(((t->tv_sec - curr_timeval.tv_sec) * 1000000 + t->tv_usec - curr_timeval.tv_usec) < MAX_RETRANSMIT_INTERVAL * 1.01);
@@ -356,7 +356,7 @@ void handle_incoming_acks(Sender * sender,
 
         SwpSeqNo AckNo = inframe->swpSeqNo;
 
-        if(frameIsCorrupted(inframe))
+        if(ackFrameIsCorrupted(inframe))
         {
             free(inframe);
             free(ll_inmsg_node);

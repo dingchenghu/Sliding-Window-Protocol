@@ -298,7 +298,7 @@ void handle_incoming_msgs(Receiver * receiver,
             outframe->swpSeqNo = inframe->swpSeqNo;
             outframe->send_id = inframe->recv_id;
             outframe->recv_id = inframe->send_id;
-            frameAddCRC32(outframe);
+            ackFrameAddCRC32(outframe);
 
             char * outgoing_charbuf = convert_frame_to_char(outframe);
             ll_append_node(outgoing_frames_head_ptr, outgoing_charbuf);
