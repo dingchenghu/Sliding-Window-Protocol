@@ -13,7 +13,6 @@ CCFLAGS = -Wall $(DEBUG) -D$(OS) -std=c99
 
 # add object file names here
 OBJS = main.o util.o input.o communicate.o sender.o receiver.o crc32.o
-
 all: tritontalk
 
 %.o : %.c

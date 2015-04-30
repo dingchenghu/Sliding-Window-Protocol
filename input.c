@@ -162,6 +162,7 @@ void * run_stdinthread(void *threadid)
                 {
                     free(input_message);
                     free(input_buffer);
+                    
                     return 0;
                 }
                 else

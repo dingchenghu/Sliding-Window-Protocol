@@ -56,7 +56,8 @@ struct ReceiverSwpState_t
 void switchSender(Receiver *receiver, uint16_t cur_send_id, uint16_t new_send_id)
 {
     //save state for current receiver
-    receiver->SavedSwpStates[cur_send_id] = (ReceiverSwpState*) malloc(sizeof(ReceiverSwpState));
+    if(receiver->hasSavedSwpState[cur_send_id] == 0)
+        receiver->SavedSwpStates[cur_send_id] = (ReceiverSwpState*) malloc(sizeof(ReceiverSwpState));
 
     receiver->SavedSwpStates[cur_send_id]->LastFrameReceived = receiver->LastFrameReceived;
     receiver->SavedSwpStates[cur_send_id]->SwpWindow = receiver->SwpWindow;
