@@ -1,6 +1,6 @@
 #include "receiver.h"
 
-//#define NDEBUG
+#define NDEBUG
 #include <assert.h>
 
 void init_receiver(Receiver * receiver, int id)
@@ -119,26 +119,26 @@ void print_msg(Receiver *receiver, Frame *inframe)
             memcpy(receiver->longMsgBuffer + receiver->longMsgBufferSize,
                 inframe->data, sizeof(char) * strlen(inframe->data) + 1);
             receiver->longMsgBufferSize += sizeof(char) * strlen(inframe->data);
-            
+
 
             //print the msg as a single long msg
             /*
             printf("<RECV_%d>:[%s]\n", receiver->recv_id, receiver->longMsgBuffer);
             */
-            
+
             //Partitioning
             int offset = 0;
             while(receiver->longMsgBufferSize >= FRAME_PAYLOAD_SIZE)
             {
-                printf("<RECV_%d>:[%.*s]\n", receiver->recv_id, 
+                printf("<RECV_%d>:[%.*s]\n", receiver->recv_id,
                     FRAME_PAYLOAD_SIZE, receiver->longMsgBuffer + offset);
                     offset += FRAME_PAYLOAD_SIZE;
                 receiver->longMsgBufferSize -= FRAME_PAYLOAD_SIZE;
             }
             if(receiver->longMsgBufferSize != 0)
-                	printf("<RECV_%d>:[%s]\n", receiver->recv_id, 
+                	printf("<RECV_%d>:[%s]\n", receiver->recv_id,
                         receiver->longMsgBuffer + offset);
-            
+
             receiver->preMsgHasSubsequent = 0;
             receiver->longMsgBufferSize = 0;
             free(receiver->longMsgBuffer);

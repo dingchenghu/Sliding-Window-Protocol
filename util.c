@@ -1,6 +1,6 @@
 #include "util.h"
 
-//#define NDEBUG
+#define NDEBUG
 #include <assert.h>
 
 //Linked list functions

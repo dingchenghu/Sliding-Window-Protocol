@@ -33,7 +33,7 @@ void send_frame(char * char_buffer,
     random_num = rand() % prob_prec;
     if (random_num < corrupt_prob)
     {
-        
+
         //Pick random indices to corrupt
         for (i=0;
              i < num_corrupt_bits;
