@@ -99,6 +99,7 @@ LLnode * ll_pop_node(LLnode ** head_ptr)
 }
 
 //Print out the whole linked list
+/*
 void print_ll(LLnode * head)
 {
     if (head == NULL)
@@ -114,7 +115,7 @@ void print_ll(LLnode * head)
     }
     fprintf(stderr, "\n");
     return;
-}
+}*/
 
 void ll_destroy_node(LLnode * node)
 {
