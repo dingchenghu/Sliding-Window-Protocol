@@ -55,7 +55,6 @@ needs to output the messages to stdout via printf.
 Here is a brief overview of how to get started using the skeleton code.
 1. Use the prep command to begin working on cs123s assignments: prep
 cs123s
-
 ll_input_head
 Receiver Thread(s)
 Input Thread
@@ -116,8 +115,8 @@ unreliable links. You may modify any of the other files above, and add any addit
 files as necessary (also taking care to change the Makefile). HOWEVER,
 we will be overwriting the input.h, input.c, communicate.h,
 and communicate.c files after you have submitted your project.
-2.3 Frame and Behavioral Specifications
 
+2.3 Frame and Behavioral Specifications
 1. The char * buffers communicated via send msg to receivers and
 send msg to senders should be, at most, 64 bytes. Please refer to
 MAX FRAME SIZE in common.h. For example, suppose that, in your
